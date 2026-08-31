@@ -54,13 +54,27 @@ const RESEND_KEY   = Deno.env.get('EMAIL_NOTIFY_RESEND_KEY');
 
 /**
  * ⭐ THE SENDER, FIXED HERE (owner, 2026-09-01).
- *
- * ⛔ NO Reply-To, and its absence is a DECISION, not an oversight: there is no
- * human-monitored yespleez.com mailbox yet, and a Reply-To pointing at an
- * address nobody reads is worse than none — it invites a reply into a void.
- * Add one only once such a mailbox genuinely exists.
  */
 const FROM = 'YesPleez <noreply@yespleez.com>';
+
+/**
+ * ⭐⭐ REPLY-TO EXISTS BECAUSE THE MAILBOX DOES (owner, 2026-09-01).
+ *
+ * ⚠ IT WAS DELIBERATELY ABSENT UNTIL NOW, and the reason is worth keeping: a
+ * Reply-To pointing at an address nobody reads is worse than none at all — it
+ * invites a reply into a void, and a booking notice that swallows a reply is a
+ * small hostility. `hello@yespleez.com` was created as a Cloudflare Email
+ * Routing rule forwarding to the YesPleez inbox, and PROVEN by a real delivery
+ * before this line was written.
+ *
+ * ⛔ THE `from` STAYS `noreply@`. The two answer different questions: `from`
+ * says who sent it, `reply_to` says where a human can be reached. Sending AS
+ * hello@ would put a monitored mailbox in the envelope of every automated
+ * message, and bounces for the whole notification stream would land in it.
+ *
+ * ⛔ Still not caller-settable — `reply_to` remains in the FORBIDDEN list below.
+ */
+const REPLY_TO = 'YesPleez <hello@yespleez.com>';
 
 /**
  * ⛔⛔ THE ENTIRE MESSAGE, AS A CONSTANT. Phase 3 proves the PATH, so the
@@ -204,6 +218,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: FROM,
         to: [user.email],          // ⛔ derived above; there is no other source
+        reply_to: REPLY_TO,        // ⛔ a constant, never the caller's
         subject: TEST_SUBJECT,
         text: TEST_TEXT,           // ⛔ text only — no HTML, so nothing to inject
       }),
