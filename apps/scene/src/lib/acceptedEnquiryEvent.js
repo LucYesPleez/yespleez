@@ -20,6 +20,7 @@
  * WAITING ON THEM, which is already true.
  */
 import { eventOwnerSide } from './enquiryNextStep';
+import { isPastDate } from './dates';
 
 /** A night is the same night when the venue and the date both match. */
 export function findEventForNight(events = [], { venueProfileId, date } = {}) {
@@ -42,6 +43,9 @@ export function findEventForNight(events = [], { venueProfileId, date } = {}) {
  */
 export function planAcceptedEnquiry({
   viewerType, otherType, date, venueProfileId, events = [], hasEventAlready = false,
+  /* ⚠ INJECTABLE, like `eventBucket`'s. A test pinned to a hardcoded future
+     date silently becomes a test of nothing the day that date passes. */
+  todayStr = undefined,
 } = {}) {
   // ⛔ Not ours to create — the other party owns the night.
   if (eventOwnerSide(viewerType, otherType) !== 'you') {
@@ -51,6 +55,13 @@ export function planAcceptedEnquiry({
      The check above is the only gate needed, and it is the same function the
      card's chip uses, so the two cannot disagree about who acts. */
   if (!date) return { action: 'none', reason: 'the enquiry names no date' };
+
+  /* ⛔⛔ A NIGHT THAT HAS PASSED IS NOT A NIGHT TO CREATE. New enquiries can no
+     longer name a past date at all, but rows accepted today may have been SENT
+     months ago — accepting one produced a draft event that was archived the
+     moment it existed, findable only in ARCHIVE. ⭐ The acceptance still
+     stands; it simply produces no event. */
+  if (isPastDate(date, todayStr ?? undefined)) return { action: 'none', reason: 'that date has passed' };
 
   // The enquiry already points at an event — nothing to create or attach.
   if (hasEventAlready) return { action: 'none', reason: 'the enquiry already names an event' };

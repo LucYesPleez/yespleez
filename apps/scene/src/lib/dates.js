@@ -10,6 +10,26 @@ export function dateStr(offsetDays = 0) {
 
 export function today() { return dateStr(0); }
 
+/**
+ * ⛔⛔ NOBODY MAY ENQUIRE ABOUT A DATE THAT HAS PASSED (owner, 2026-08-31).
+ *
+ * ⭐ ONE definition, because the rule has to hold in three places at once: the
+ * calendar that offers dates, the field a venue types one into, and the write
+ * that records it. An affordance is not a rule — the calendar has always
+ * refused past dates, and an invite's free date field happily accepted one.
+ *
+ * ⚠ TODAY IS NOT PAST. A gig tonight is a real booking, and a rule that
+ * excluded it would break the most common last-minute case there is.
+ *
+ * ⚠ Compared as STRINGS against the LOCAL today. ⛔ Never `new Date(a) <
+ * new Date(b)`, which parses a bare YYYY-MM-DD as UTC midnight and makes every
+ * Australian morning read as yesterday — the defect this file exists to end.
+ */
+export function isPastDate(dateStr_, todayStr = today()) {
+  if (!dateStr_) return false;   // absent is not past; callers judge absence
+  return String(dateStr_) < todayStr;
+}
+
 // The YYYY-MM-DD a Date falls on IN THE VIEWER'S TIMEZONE.
 //
 // ⛔ Never `d.toISOString().slice(0, 10)` for this. That is the UTC date, and

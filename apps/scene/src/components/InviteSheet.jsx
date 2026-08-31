@@ -7,6 +7,7 @@ import { formatLocation } from '../lib/formatLocation';
 import { profileIdentity } from '../lib/profileTypes';
 import { genreLabels } from '../lib/profileTaxonomy';
 import { isArchived } from '../lib/eventBuckets';
+import { today, isPastDate } from '../lib/dates';
 import ArtistPicker from './ArtistPicker';
 
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
@@ -283,7 +284,9 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
      it; with several to choose from and none chosen there is no honest value
      to write, and S2's RLS would reject the guess anyway (can_act_as of the
      wrong profile). Refusing here says so before the round trip. */
-  const canSend    = message.trim().length > 0 && !!date && !!senderId && !sending;
+  /* ⛔ A past date is refused by the RULE, not only by the picker's `min` —
+     a typed value, a pasted one and an autofill all reach here. */
+  const canSend    = message.trim().length > 0 && !!date && !isPastDate(date) && !!senderId && !sending;
 
   const labelStyle = { fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 };
   const subLabel   = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 };
@@ -532,7 +535,12 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   <div>
                     <label style={subLabel}>DATE</label>
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+                    {/* ⛔⛔ NO PAST DATES. The availability calendar has always
+                        refused them; this free field did not, so an invitation
+                        could name a night that had already happened — and it is
+                        the one enquiry path with no calendar in front of it.
+                        ⚠ `min` is the affordance; `canSend` below is the rule. */}
+                    <input type="date" min={today()} value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
                   </div>
                   <div>
                     <label style={subLabel}>START</label>
@@ -601,7 +609,8 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 8, textAlign: 'center' }}>
                   {!senderId ? 'Choose who this offer comes from to send'
                     : !message.trim() ? 'Add a pitch to send'
-                    : 'Pick a date to send'}
+                    : isPastDate(date) ? 'That date has passed — pick a date from today on'
+                      : 'Pick a date to send'}
                 </div>
               )}
             </>

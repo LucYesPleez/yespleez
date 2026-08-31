@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { getPersonalProfileId, getOwnerProfiles } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
-import { today } from '../lib/dates';
+import { today, isPastDate } from '../lib/dates';
 import { useSession, usePlayer } from '../App';
 import { useParticipation } from '../components/ParticipationGate';
 import EventCard from '../components/EventCard';
@@ -654,6 +654,16 @@ export default function ProfileScreen() {
      */
     if (askChoiceNeeded && !askCategory) {
       setEnquiryError('Choose what you are enquiring about before sending.');
+      return;
+    }
+    /* ⛔⛔ NOBODY MAY ENQUIRE ABOUT A DATE THAT HAS PASSED (owner, 2026-08-31).
+       The calendar already refuses to offer one, so reaching here means the
+       sheet was opened before midnight and sent after it, or the state was
+       reached some way the calendar does not govern. ⭐ The affordance is not
+       the rule: this is the rule, in the write path, exactly as the P6
+       requirements gate is. */
+    if (isPastDate(pickerDate)) {
+      setEnquiryError('That date has passed. Pick a date from today on.');
       return;
     }
     if (!canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating,
