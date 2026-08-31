@@ -467,15 +467,22 @@ END $v5$;
 -- V6 · ⛔⛔ THE CLAIM PATH DOES NOT ENQUEUE. A held row that becomes deliverable
 --      later must produce NO email — this is the historical-flood rule, and it
 --      is provoked rather than asserted.
+-- ⚠ `to_profile_id` CARRIES A FOREIGN KEY TO `profiles`, and the first draft of
+--   this block invented a uuid and died 23503 against it. Creating a real,
+--   UNCLAIMED profile (no user_id) is not merely a fix — it is the honest N1
+--   case, which a synthetic id never was.
 DO $v6$
 DECLARE
   v_user uuid := gen_random_uuid();
-  v_prof uuid := gen_random_uuid();
+  v_prof uuid;
   v_note uuid;
   n int;
 BEGIN
   INSERT INTO auth.users (id, email, email_confirmed_at)
   VALUES (v_user, 'e3-claim@example.invalid', now());
+
+  INSERT INTO public.profiles (name) VALUES ('E3 verify profile')
+  RETURNING id INTO v_prof;
 
   -- A HELD notification: addressed to a profile, no delivery identity (N1).
   INSERT INTO public.notifications (to_profile_id, type, message, read)
