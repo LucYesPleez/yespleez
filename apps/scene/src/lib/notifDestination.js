@@ -65,6 +65,24 @@ const ENQUIRY_TAB = {
   event_invite:      'INCOMING',
 };
 
+/**
+ * ⛔⛔ AN ID, OR NOTHING. `data.event_id` is copied from writer to writer —
+ * `acceptInvite` and `declineInvite` pass whatever the invite carried straight
+ * into the next notice — so a value that is not an id travels the whole chain.
+ *
+ * ⚠⚠ THIS IS NOT HYPOTHETICAL. The invite sheet's "+ Create New Event" option
+ * is the sentinel `__new__`; it reached a notification unguarded and produced
+ * `/event/__new__`, which cannot load, so pressing the notice dropped the
+ * reader on What's On — twice over, because accepting that invite copied the
+ * sentinel into a second notice.
+ *
+ * ⭐ Guarding HERE kills the class rather than the instance: every writer,
+ * present and future, and every row ALREADY WRITTEN, because the destination
+ * is computed at read time. A row carrying junk becomes inert instead of
+ * pointing somewhere that does not exist.
+ */
+const looksLikeId = v => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(v);
+
 /** `/event/:id` — the notice is about one event, and the row names it. */
 const EVENT_TYPES = new Set([
   'slot_offer', 'slot_changed', 'slot_removed', 'slot_accepted', 'slot_declined',
@@ -100,11 +118,14 @@ export function notifDestination(notif) {
   const type = notif.type;
   const data = notif.data || {};
 
+  /* ⛔ Read through the guard, never off `data` directly — see `looksLikeId`. */
+  const eventId = looksLikeId(data.event_id) ? data.event_id : null;
+
   if (APPLICATION_TYPES.has(type)) {
-    return data.event_id ? `/event/${data.event_id}/applications` : null;
+    return eventId ? `/event/${eventId}/applications` : null;
   }
   // An event, when the row names one — the most specific place to land.
-  if (EVENT_TYPES.has(type) && data.event_id) return `/event/${data.event_id}`;
+  if (EVENT_TYPES.has(type) && eventId) return `/event/${eventId}`;
 
   /* ⭐ Otherwise a decision on a direct enquiry goes to the reader's own
      enquiries section. ⛔ `dashPath` comes from the profile-type registry,

@@ -8,13 +8,22 @@ import { notifDestination, isNavigable } from './notifDestination.js';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+/**
+ * ⚠ REAL-SHAPED IDS. These fixtures used to be `e1`/`e2`, which read nicely and
+ * are not ids — and the module now refuses anything that is not one, because a
+ * sentinel travelling the writer chain produced `/event/__new__` in production.
+ * ⛔ The assertions are unchanged in strength; only the fixtures became honest.
+ */
+const E1 = '2b919b64-8d2d-4799-9eff-f00b1ddf9bee';
+const E2 = '1238c417-4365-4728-90e5-1a768ad63a69';
+
 test('an event notice opens its event', () => {
   assert.equal(
-    notifDestination({ type: 'slot_offer', data: { event_id: 'e1', performance_id: 'p1' } }),
-    '/event/e1');
+    notifDestination({ type: 'slot_offer', data: { event_id: E1, performance_id: 'p1' } }),
+    `/event/${E1}`);
   assert.equal(
-    notifDestination({ type: 'slot_removed', data: { event_id: 'e2' } }),
-    '/event/e2');
+    notifDestination({ type: 'slot_removed', data: { event_id: E2 } }),
+    `/event/${E2}`);
 });
 
 /**
@@ -22,8 +31,8 @@ test('an event notice opens its event', () => {
  */
 test('a new application opens the applications queue, not the event page', () => {
   assert.equal(
-    notifDestination({ type: 'new_application', data: { event_id: 'e1' } }),
-    '/event/e1/applications');
+    notifDestination({ type: 'new_application', data: { event_id: E1 } }),
+    `/event/${E1}/applications`);
 });
 
 /**
@@ -99,8 +108,8 @@ test('a booking on a direct enquiry lands on the enquirer\'s own section', () =>
 
 test('⭐ an enquiry that DOES name an event still opens the event', () => {
   assert.equal(
-    notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7, applicant_type: 'artist', event_id: 'e9' } }),
-    '/event/e9');
+    notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7, applicant_type: 'artist', event_id: E1 } }),
+    `/event/${E1}`);
 });
 
 /**
@@ -144,13 +153,42 @@ test('⭐ an invite that names no event goes to the act\'s own offers', () => {
 
 test('an invite that DOES name an event still opens the event', () => {
   assert.equal(
-    notifDestination({ type: 'event_invite', data: { event_id: 'e1', applicant_type: 'artist' } }),
-    '/event/e1');
+    notifDestination({ type: 'event_invite', data: { event_id: E1, applicant_type: 'artist' } }),
+    `/event/${E1}`);
 });
 
 test('⛔ an invite naming no act type stays inert rather than guessing a dashboard', () => {
   assert.equal(notifDestination({ type: 'event_invite', data: {} }), null);
   assert.equal(notifDestination({ type: 'event_invite', data: { applicant_type: 'punter' } }), null);
+});
+
+/**
+ * ⛔⛔ AN ID, OR NOTHING — the class, not the instance.
+ *
+ * `acceptInvite`/`declineInvite` copy `data.event_id` from one notice into the
+ * next, so junk travels the whole chain. `__new__` (the invite picker's
+ * "+ Create New Event") did exactly that and produced `/event/__new__`, which
+ * cannot load — so the reader was dropped on What's On, twice over.
+ *
+ * ⭐ Guarding at read time also repairs rows ALREADY WRITTEN: they become
+ * inert instead of pointing somewhere that does not exist.
+ */
+test('⛔⛔ an event_id that is not an id is treated as absent', () => {
+  for (const junk of ['__new__', 'new', '', 'undefined', 'null', 42, {}, true]) {
+    for (const type of ['event_invite', 'invite_accepted', 'slot_offer', 'new_application']) {
+      const dest = notifDestination({ type, data: { event_id: junk } });
+      /* ⚠ THE ASSERTION IS "no event link", ⛔ not "the junk is absent from the
+         string" — `''.includes('')` is true, so that form passed itself. */
+      assert.equal(String(dest).includes('/event/'), false,
+        `${type} built an event link out of ${JSON.stringify(junk)}: ${dest}`);
+    }
+  }
+});
+
+test('⭐ a real uuid still resolves', () => {
+  assert.equal(
+    notifDestination({ type: 'slot_offer', data: { event_id: '2b919b64-8d2d-4799-9eff-f00b1ddf9bee' } }),
+    '/event/2b919b64-8d2d-4799-9eff-f00b1ddf9bee');
 });
 
 test('an unknown type is inert rather than guessed at', () => {
