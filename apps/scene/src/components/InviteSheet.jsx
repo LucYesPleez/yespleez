@@ -248,10 +248,29 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
       // applicant-side-only INSERT policy (S4), which is expected until M6
       // replaces it with can_act_as().
       console.error('venue_enquiries insert failed:', err.code, err.message, err.details, err.hint);
+      /**
+       * ⛔⛔ "PLEASE TRY AGAIN" IS A LIE ON A DUPLICATE. `venue_enquiries` is
+       * UNIQUE on (venue_user_id, applicant_user_id, date_requested), so 23505
+       * means an enquiry between these two ACCOUNTS already exists for that
+       * date — and no number of retries will ever change that. The applicant
+       * side has said so honestly since 2026-08-10; this side still offered a
+       * retry that could not work.
+       *
+       * ⚠ THE CONSTRAINT IS ON ACCOUNTS, ⛔ not profiles. An account that owns
+       * two venues cannot invite the same act for one night from both of them,
+       * and the message says "you" rather than naming a venue for that reason.
+       * ⛔ Do not reword it into a claim about a single room.
+       */
+      const dup = err.code === '23505'
+        || /duplicate|unique/i.test(err.message || '');
       setError(
         err.code === '42501'
           ? "Venues can't send invites yet — this is a known limitation."
-          : `Couldn't send the invite (${err.code || 'error'}). Please try again.`
+          : dup
+            ? `You have already sent them an invite for ${date
+              ? new Date(`${date}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })
+              : 'that date'}. Check your outgoing enquiries.`
+            : `Couldn't send the invite (${err.code || 'error'}). Please try again.`
       );
       return;
     }
