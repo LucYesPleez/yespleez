@@ -49,6 +49,10 @@ import { PROFILE_TYPES as PROFILE_REGISTRY } from './profileTypes';
  */
 const ENQUIRY_DECISION_TYPES = new Set([
   'booking_confirmed', 'booking_cancelled', 'shortlisted', 'application_declined',
+  /* ⭐ AN INVITE OFTEN NAMES NO EVENT — the venue is inviting an act to a night
+     it has not built yet, which is the normal case, not an edge one. Sent to
+     the act's own OFFERS rather than left inert. */
+  'event_invite',
 ]);
 
 /** Which tab of the enquiries panel the decision belongs to. */
@@ -57,6 +61,8 @@ const ENQUIRY_TAB = {
   booking_cancelled: 'OUTGOING',
   shortlisted:       'OUTGOING',
   application_declined: 'OUTGOING',
+  /* ⚠ INCOMING, not OUTGOING: an invite is something the act RECEIVED. */
+  event_invite:      'INCOMING',
 };
 
 /** `/event/:id` — the notice is about one event, and the row names it. */
@@ -104,7 +110,10 @@ export function notifDestination(notif) {
      enquiries section. ⛔ `dashPath` comes from the profile-type registry,
      never a restated map — a venue and a festival both correctly have nowhere
      to send an applicant, and the registry already says so (null). */
-  if (ENQUIRY_DECISION_TYPES.has(type) && data.enquiry_id) {
+  /* ⚠ `enquiry_id` OR an invite: the invite's own row id is not carried in
+     `data`, and requiring it would leave every invite inert. What both need is
+     an act whose dashboard exists, which is the check below. */
+  if (ENQUIRY_DECISION_TYPES.has(type) && (data.enquiry_id || type === 'event_invite')) {
     const dash = PROFILE_REGISTRY[data.applicant_type]?.dashPath;
     if (!dash) return null;
     const tab = ENQUIRY_TAB[type];

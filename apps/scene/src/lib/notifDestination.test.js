@@ -126,6 +126,33 @@ test('⛔ a decision that names no applicant type, or a type with no dashboard, 
   assert.equal(notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7 } }), null);
 });
 
+/**
+ * ⛔⛔ A SENTINEL IS NOT AN ID. The invite sheet's picker offers "+ Create New
+ * Event" as `__new__`; that value reached the notification unguarded, so the
+ * link resolved to `/event/__new__` — an event that cannot exist — and the
+ * reader was dropped on What's On. The row is written with null now; this pins
+ * what the destination does with an invite either way.
+ */
+test('⭐ an invite that names no event goes to the act\'s own offers', () => {
+  assert.equal(
+    notifDestination({ type: 'event_invite', data: { event_id: null, applicant_type: 'artist' } }),
+    '/industry/artist?section=enquiries&tab=INCOMING');
+  assert.equal(
+    notifDestination({ type: 'event_invite', data: { applicant_type: 'band' } }),
+    '/industry/band?section=enquiries&tab=INCOMING');
+});
+
+test('an invite that DOES name an event still opens the event', () => {
+  assert.equal(
+    notifDestination({ type: 'event_invite', data: { event_id: 'e1', applicant_type: 'artist' } }),
+    '/event/e1');
+});
+
+test('⛔ an invite naming no act type stays inert rather than guessing a dashboard', () => {
+  assert.equal(notifDestination({ type: 'event_invite', data: {} }), null);
+  assert.equal(notifDestination({ type: 'event_invite', data: { applicant_type: 'punter' } }), null);
+});
+
 test('an unknown type is inert rather than guessed at', () => {
   assert.equal(notifDestination({ type: 'something_new', data: { event_id: 'e1' } }), null);
   assert.equal(notifDestination(null), null);

@@ -10,6 +10,13 @@ import { isArchived } from '../lib/eventBuckets';
 import { today, isPastDate } from '../lib/dates';
 import ArtistPicker from './ArtistPicker';
 
+/**
+ * ⛔⛔ THE "I WILL MAKE ONE" OPTION IN THE EVENT PICKER — a sentinel, ⛔ NEVER
+ * an id. Named so a third writer cannot invent its own spelling; the two that
+ * existed already disagreed about whether to strip it.
+ */
+const EVENT_PICKER_NEW = '__new__';
+
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
 const DURATIONS  = [30, 45, 60, 90, 120];
 const EXTRAS     = ['Accommodation', 'Meals', 'Travel'];
@@ -202,11 +209,23 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
     //                    this sheet is the venue inviting an artist.
     // applicant_name/event_name are deliberately NOT stored — both are derived
     // from applicant_profile_id / event_id at read time.
+    /**
+     * ⛔⛔ THE PICKER'S SENTINEL IS NOT AN EVENT ID. `__new__` means "I will
+     * make one", and it must be resolved to null exactly ONCE, here, rather
+     * than at each write.
+     *
+     * ⚠⚠ It was guarded on the enquiry row and NOT on the notification twelve
+     * lines below, so the artist's invite arrived carrying
+     * `data.event_id: '__new__'` and its link resolved to `/event/__new__` —
+     * an event that cannot exist, which dropped the reader on What's On. One
+     * value, two writes, one of them guarded: the shape that always drifts.
+     */
+    const realEventId = eventId && eventId !== EVENT_PICKER_NEW ? eventId : null;
     const payload = {
       venue_user_id:    venueUserId,
       applicant_user_id: artist.user_id,
       applicant_type:   artist.type || 'artist',
-      event_id:         eventId && eventId !== '__new__' ? eventId : null,
+      event_id:         realEventId,
       date_requested:   date || null,
       proposed_time:    time || null,
       proposed_fee:     fee.trim() || null,
@@ -246,7 +265,15 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
       aboutProfileId: venueProfileIdFinal, // the venue doing the inviting
       type:    'event_invite',
       message: `You've received an invite to perform${selectedEvent ? ` at ${selectedEvent.name}` : ''}.`,
-      data:    { event_id: eventId || null, event_name: selectedEvent?.name || null, host_id: venueUserId, proposed_date: date || null, proposed_fee: fee || null },
+      /* ⭐ THE SAME RESOLVED ID the row was written with, ⛔ never the raw
+         picker value. `applicant_type` rides along so an invite that names no
+         event can still lead somewhere — the invited act's own offers — rather
+         than being inert or, worse, pointing at nothing. */
+      data:    {
+        event_id: realEventId, event_name: selectedEvent?.name || null,
+        host_id: venueUserId, proposed_date: date || null, proposed_fee: fee || null,
+        applicant_type: artist.type || 'artist',
+      },
     });
     setSent(true);
   }
@@ -488,8 +515,8 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                       {ev.config?.date && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginLeft: 'auto' }}>{ev.config.date}</span>}
                     </label>
                   ))}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: eventId === '__new__' ? 'rgba(0,229,160,.08)' : 'rgba(255,255,255,.04)', border: `1px solid ${eventId === '__new__' ? '#00E5A0' : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s' }}>
-                    <input type="radio" name="invite-event" value="__new__" checked={eventId === '__new__'} onChange={() => setEventId('__new__')} style={{ accentColor: '#00E5A0', flexShrink: 0 }} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: eventId === EVENT_PICKER_NEW ? 'rgba(0,229,160,.08)' : 'rgba(255,255,255,.04)', border: `1px solid ${eventId === EVENT_PICKER_NEW ? '#00E5A0' : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s' }}>
+                    <input type="radio" name="invite-event" value={EVENT_PICKER_NEW} checked={eventId === EVENT_PICKER_NEW} onChange={() => setEventId(EVENT_PICKER_NEW)} style={{ accentColor: '#00E5A0', flexShrink: 0 }} />
                     <span style={{ fontFamily: "'DM Sans'", fontSize: 13, color: 'rgba(255,255,255,.6)' }}>+ Create New Event</span>
                   </label>
                 </div>
