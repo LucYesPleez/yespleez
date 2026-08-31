@@ -861,6 +861,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         <BookingInvitation
           offer={openOffer}
           artistName={profile?.name}
+          /* The PROFILE that was invited, not the account — this dashboard is
+             already profile-scoped, so it is the one identity that may reply. */
+          viewerProfileId={profile?.id}
           availability={availabilityFor(openOffer)}
           onRespond={handleOfferRespond}
           onClose={() => setOpenOffer(null)}

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { formatDisplayDate } from '../lib/dates';
 import { formatLocation } from '../lib/formatLocation';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { openDirectConversation } from '../lib/messaging';
+import { useConversationUi } from '../lib/conversationUi';
 import DateBox from './DateBox';
 
 const fmtTime = d => d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: d.getMinutes() ? '2-digit' : undefined }).replace(' ', '').toLowerCase();
@@ -28,15 +30,21 @@ const RGB    = PROFILE_TYPES.venue.rgb;
  * keen", not to display every field.
  *
  * Props:
- *   offer        – venue_enquiries row + { venueProfile, venue_name }
- *   artistName   – for the "Hey X —" greeting
+ *   offer            – venue_enquiries row + { venueProfile, venue_name }
+ *   artistName       – for the "Hey X —" greeting
+ *   viewerProfileId  – the ACT's profile id, the identity that replies. Not the
+ *                      account: an account with several performer profiles must
+ *                      answer as the one that was invited, never as whichever
+ *                      profile the drawer guesses.
  *   availability – { status: 'free'|'clash'|'unknown', clashWith?: string }
  *   onRespond    – (id, status) => void
  *   onClose      – () => void
  */
-export default function BookingInvitation({ offer, artistName, availability, onRespond, onClose }) {
+export default function BookingInvitation({ offer, artistName, viewerProfileId, availability, onRespond, onClose }) {
   const navigate = useNavigate();
+  const { open: openConversation } = useConversationUi();
   const [busy, setBusy] = useState(false);
+  const [msgBusy, setMsgBusy] = useState(false);
   // Reopening an offer you've already accepted shows the accepted state — it
   // must never re-offer Accept on something that's already been said yes to.
   const [accepted, setAccepted] = useState(
@@ -51,6 +59,12 @@ export default function BookingInvitation({ offer, artistName, availability, onR
   const vp        = offer.venueProfile || {};
   const venueName = offer.venue_name || vp.name || 'A venue';
   const heroImg   = vp.avatar_hero || vp.avatar || PROFILE_TYPES.venue.defaultImage;
+  /* ⛔ NOT `venue_user_id` — that is the account, and a conversation is between
+     PROFILES. viewVenue can fall back to the account because a profile route
+     tolerates it; messaging cannot, so an invite without a venue profile id
+     leaves the button inert rather than opening a thread with the wrong party. */
+  const venueProfileId = vp.id || offer.venue_profile_id || null;
+  const canMessage     = !!(viewerProfileId && venueProfileId);
   const loc       = formatLocation(vp);
   // Full act name, never a first word — "Daddy Longlegs" is not "Daddy".
   const actName   = (artistName || '').trim();
@@ -73,6 +87,37 @@ export default function BookingInvitation({ offer, artistName, availability, onR
     setBusy(false);
     if (status === 'accepted') setAccepted(true);
     else onClose?.();
+  }
+
+  /**
+   * Talk to the venue about this invitation.
+   *
+   * ⭐ `openDirectConversation`, NOT a context-scoped one, because the venue's
+   * own side of this exchange (EnquiryDossierSheet) opens the direct thread
+   * too. Two surfaces over one `venue_enquiries` row must land in the SAME
+   * conversation, or each side would be talking into a thread the other never
+   * sees.
+   *
+   * Profile-to-profile per the messaging architecture (§A5): `viewerProfileId`
+   * is the act that was invited, `venueProfileId` the venue that invited it.
+   * `asProfileId` is passed because this sheet KNOWS which identity is reading
+   * and the drawer cannot work it out when one account holds several profiles.
+   */
+  async function messageVenue() {
+    const to = venueProfileId;
+    if (!viewerProfileId || !to || msgBusy) return;
+    setMsgBusy(true);
+    try {
+      const { conversationId } = await openDirectConversation(viewerProfileId, to);
+      if (!conversationId) return;
+      onClose?.();
+      openConversation(conversationId, {
+        profile: { id: to, name: venueName, type: 'venue' },
+        asProfileId: viewerProfileId,
+      });
+    } finally {
+      setMsgBusy(false);
+    }
   }
 
   function viewVenue() {
@@ -102,7 +147,7 @@ export default function BookingInvitation({ offer, artistName, availability, onR
               {venueName} has been notified that you're keen. Sort the final details together to lock the booking in.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button disabled style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: '11px 22px', borderRadius: 10, border: `1px solid rgba(${RGB},.3)`, background: `rgba(${RGB},.06)`, color: 'rgba(255,255,255,.4)', cursor: 'not-allowed' }}>MESSAGE VENUE · SOON</button>
+              <button onClick={messageVenue} disabled={!canMessage || msgBusy} style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: '11px 22px', borderRadius: 10, border: `1px solid rgba(${RGB},${canMessage ? .5 : .3})`, background: `rgba(${RGB},.06)`, color: canMessage ? ACCENT : 'rgba(255,255,255,.4)', cursor: canMessage && !msgBusy ? 'pointer' : 'not-allowed', opacity: msgBusy ? .6 : 1 }}>MESSAGE VENUE</button>
               <button onClick={onClose} style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: '11px 22px', borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>DONE</button>
             </div>
           </div>
@@ -210,7 +255,7 @@ export default function BookingInvitation({ offer, artistName, availability, onR
                 >{busy ? '…' : 'ACCEPT INVITATION'}</button>
 
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button disabled style={{ flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,.1)', background: 'rgba(255,255,255,.02)', color: 'rgba(255,255,255,.35)', cursor: 'not-allowed' }}>MESSAGE · SOON</button>
+                  <button onClick={messageVenue} disabled={!canMessage || msgBusy} style={{ flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, padding: '11px 0', borderRadius: 10, border: `1px solid rgba(255,255,255,${canMessage ? .15 : .1})`, background: 'rgba(255,255,255,.02)', color: `rgba(255,255,255,${canMessage ? .7 : .35})`, cursor: canMessage && !msgBusy ? 'pointer' : 'not-allowed', opacity: msgBusy ? .6 : 1 }}>MESSAGE</button>
                   <button onClick={viewVenue} style={{ flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer' }}>VIEW VENUE</button>
                   <button onClick={() => respond('declined')} disabled={busy} style={{ flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(255,80,80,.25)', background: 'none', color: 'rgba(255,120,120,.8)', cursor: 'pointer' }}>DECLINE</button>
                 </div>
