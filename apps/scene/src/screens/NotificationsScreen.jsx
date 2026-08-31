@@ -6,6 +6,7 @@ import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismissNotification, markResponded } from '../lib/notifActions';
 import NotificationPreferences from '../components/NotificationPreferences';
+import EmailNotificationPreferences from '../components/EmailNotificationPreferences';
 import PushNotificationToggle from '../components/PushNotificationToggle';
 import {
   conversationNotificationTypes, KNOWN_CONVERSATION_TYPES,
@@ -148,6 +149,10 @@ export default function NotificationsScreen() {
           <>
             <PushNotificationToggle session={session} />
             <NotificationPreferences session={session} />
+            {/* E6 · the third channel. A SEPARATE panel because its category
+                list deliberately differs in one place: set_times_released is
+                an EVENTS notice in-app and a SCHEDULE one by email. */}
+            <EmailNotificationPreferences session={session} />
           </>
         )}
 
