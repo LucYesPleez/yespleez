@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
@@ -55,7 +55,7 @@ import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { cancelEnquiry } from '../lib/cancelEnquiry';
-import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { withDirection, normaliseStatus, rawStatusesFor, clearedColumnFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import QrCodesSection from '../components/QrCodesSection';
@@ -140,6 +140,24 @@ export default function HostDashboard({ userId: userIdProp }) {
   const followDrag = useDragScroll('host-dashboard-following');
   const appsLoaded    = useRef(false);
   const lineupsLoaded = useRef(false);
+  /**
+   * ⛔⛔ THIS WAS USED IN TWO HANDLERS AND DECLARED IN NEITHER — a bare
+   * ReferenceError that `vite build` compiles happily and the test suite never
+   * sees, because a source-text test does not execute anything.
+   *
+   * ⚠⚠ THE SYMPTOM WAS "CLEAR AND CANCEL DO NOTHING", and the two failed
+   * DIFFERENTLY, which is what made it confusing: `handleClearEnquiry` threw at
+   * `clearedColumnFor` (also unimported) BEFORE its write, so nothing happened
+   * at all; `handleCancelEnquiry` threw AFTER `cancelEnquiry` had already
+   * written, so the row was genuinely cancelled in the database while the list
+   * on screen never refreshed. One looked broken, the other looked ignored.
+   *
+   * ⭐ Same class as the `fromProfileId` ReferenceError in ArtistDashboard's
+   * offer handler, and caught the same way it was: by reading the code after
+   * the database disagreed with the screen. ⚠ `oxlint --deny no-undef` is what
+   * sees this class; the default rules do not.
+   */
+  const queryClient   = useQueryClient();
 
   const { data, isLoading: loadingEvents } = useQuery({
     queryKey: ['hostDashboard', userId],
