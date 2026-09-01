@@ -909,6 +909,53 @@ function StagePager({ day, allMixSlots, now, sync }) {
           />
         )))}
 
+        {/**
+          * ⭐⭐ A STAGE THAT IS DARK TONIGHT SAYS SO (owner, 2026-09-01: "it
+          * looks like there are no set times… just dont ever have this spot
+          * blank").
+          *
+          * ⛔⛔ EVERY DAY GETS A BUCKET FOR EVERY STAGE, empty ones included —
+          * `scheduleModel` builds one per stage of the EVENT, not per stage
+          * running that day. Neverland runs LIVE and DJ on Friday and Saturday
+          * and only WORKSHOPS on Sunday, so Sunday's LIVE column had nothing in
+          * it and the section under the chips was simply empty. Thirty-eight
+          * set times exist and the page showed a hole.
+          *
+          * ⛔ THE PAGER COULD NOT BE THE ANSWER. The stage index is SHARED
+          * across days — one index positions all of them — so auto-jumping
+          * Sunday to Workshops drags Friday there too, and Friday has no
+          * workshops. That trades one blank for another.
+          *
+          * ⭐ So the empty column fills itself: it names the day, says nothing
+          * is on, and offers the stage that IS running. Tapping it is an
+          * ordinary chip jump, which is allowed to move every day because the
+          * reader asked for it.
+          *
+          * ⚠ Spans the whole grid so the column has the height of its
+          * neighbours; a short notice in a tall grid would leave the hole this
+          * exists to remove (Rendering Contract: absent, never a visual gap).
+          */}
+        {stages.map((st, sIdx) => {
+          if (grid.stages[sIdx]?.length) return null;
+          const alt = stages.findIndex((_s, i) => grid.stages[i]?.length);
+          return (
+            <div
+              key={'empty' + (st.id ?? sIdx)}
+              className={es.stagePageEmpty}
+              style={{ gridColumn: sIdx + 1, gridRow: `1 / span ${Math.max(1, grid.rows)}` }}
+            >
+              <span className={es.stagePageEmptyLine}>
+                Nothing on {st.name}{day?.name ? ` on ${day.name}` : ''}.
+              </span>
+              {alt >= 0 && alt !== sIdx && (
+                <button type="button" className={es.stagePageEmptyBtn} onClick={() => jumpTo(alt)}>
+                  {stages[alt].name} →
+                </button>
+              )}
+            </div>
+          );
+        })}
+
         {stages.map((st, sIdx) => (
           <Fragment key={'c' + (st.id ?? 'implicit')}>
             {grid.stages[sIdx].map((cell, i) => (
