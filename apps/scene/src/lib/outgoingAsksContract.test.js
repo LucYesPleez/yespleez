@@ -208,6 +208,21 @@ test('cancelling an accepted ask notifies the venue, and only then', () => {
     'a failed write must not notify — the error return must come FIRST');
 });
 
+/**
+ * ⛔⛔ ONE WITHDRAWAL, ONE NOTICE. Found in real testing 2026-09-01: cancel is
+ * offered on BOTH the card and the sheet, and pressing it twice sent the venue
+ * two "they pulled out" notices for a single enquiry — the second press read a
+ * React prop that had not caught up with the database.
+ */
+test('cancelling twice notifies once', () => {
+  const CANCEL = read('./cancelEnquiry.js');
+  assert.match(CANCEL, /\.neq\('status', 'cancelled'\)/,
+    'the guard must be in the WRITE — a client-side flag describes what the browser last heard');
+  assert.match(CANCEL, /\.select\('id'\)/, 'the write must report what it actually changed');
+  assert.match(CANCEL, /if \(!changed\?\.length\) return[^\n]*\n[\s\S]*?if \(wasAccepted\)/,
+    'a no-op write must return BEFORE the notification');
+});
+
 test('a cancelled ask leaves the venue\'s NEW pile', () => {
   const UTILS = read('./enquiryUtils.js');
   assert.match(UTILS, /cancelled:\s*'declined'/,

@@ -31,13 +31,34 @@ export async function cancelEnquiry(enq, actingProfileId, actingProfileName) {
      is `cancelled`. */
   const wasAccepted = normaliseStatus({ ...enq, direction: 'outgoing' }) === 'accepted';
 
-  const { error } = await supabase.from('venue_enquiries')
+  /**
+   * ⛔⛔ `.neq('status', 'cancelled')` IS THE DUPLICATE GUARD, AND IT MUST LIVE
+   * IN THE WRITE.
+   *
+   * ⚠⚠ PROVEN IN PRODUCTION-LIKE TESTING, 2026-09-01: pressing cancel twice —
+   * the card and the sheet both offer it — mailed the venue TWO "they pulled
+   * out" notices for one withdrawal. `wasAccepted` reads the React prop, and
+   * the second press still saw the pre-cancel copy because the refetch had not
+   * landed. A client-side flag can never be the guard against a repeat: it
+   * describes what the browser last heard, not what is true.
+   *
+   * ⭐ The DATABASE decides. A row already cancelled matches nothing, so the
+   * second press updates zero rows and `.select()` returns `[]` — no write, no
+   * notice, no error to explain to anyone. Two racing presses serialise: the
+   * loser sees the winner's `cancelled` and comes back empty.
+   */
+  const { data: changed, error } = await supabase.from('venue_enquiries')
     .update({ status: 'cancelled', applicant_cleared_at: new Date().toISOString() })
     .eq('id', enq.id)
-    .eq('applicant_profile_id', actingProfileId);
+    .eq('applicant_profile_id', actingProfileId)
+    .neq('status', 'cancelled')
+    .select('id');
   /* ⛔ NO NOTIFICATION ON A FAILED WRITE. Telling a venue an act pulled out of
      a booking that is still live is worse than the silence this replaces. */
   if (error) return { error };
+  /* ⭐ NOTHING CHANGED = ALREADY WITHDRAWN. Not an error — the asker got what
+     they wanted — but emphatically not a second notice. */
+  if (!changed?.length) return { error: null, alreadyCancelled: true };
 
   /**
    * ⭐⭐ AN ACCEPTED DATE THAT FALLS THROUGH IS NEWS THE VENUE IS OWED (owner,
