@@ -334,8 +334,19 @@ export function focusDayIndex(days = [], todayStr = '') {
   if (upcoming) return upcoming.dayIndex;
 
   /**
-   * ⭐⭐ ONCE IT IS OVER, OPEN ON THE BIGGEST NIGHT (owner, 2026-09-01: "show
-   * the main part of the festival, go the friday night or sat night").
+   * ⭐⭐ ONCE IT IS OVER, OPEN ON THE OPENING NIGHT (owner, 2026-09-01: "theyd
+   * be even better if they showed friday").
+   *
+   * ⚠⚠ THIS REPLACED "THE BUSIEST NIGHT", WHICH I ARGUED FOR AND WAS WRONG
+   * ABOUT. By count Saturday is genuinely bigger — nine acts on the live stage
+   * to Friday's six — so the rule was picking correctly and still gave the
+   * worse page. A finished festival is being READ, not navigated: it opens on
+   * the night it opened on, with the Welcome to Country and the acts whose
+   * profiles carry artwork. Volume was the measurable thing, ⛔ not the right
+   * one.
+   *
+   * ⛔ NOT `list[0]` EITHER — see the guard below. The first day of a programme
+   * is not always the first day with anything on it.
    *
    * ⛔⛔ IT USED TO BE THE LAST DAY, and on a real programme that is the
    * wind-down. Neverland Weekender runs two stages on Friday and Saturday and
@@ -353,15 +364,12 @@ export function focusDayIndex(days = [], todayStr = '') {
    * behaviour, which is why the original rule is preserved below rather than
    * replaced.
    */
-  const counted = list.map(d => ({
-    dayIndex: d.dayIndex,
-    n: (d.stages || []).reduce((sum, st) => sum + ((st?.slots || []).length), 0),
-  }));
-  /* ⛔ `>` not `>=` — an earlier day wins a tie. Between two equally full
-     nights the opening one is the more natural answer, and it keeps the result
-     stable rather than drifting to whichever came last. */
-  const busiest = counted.reduce((best, d) => (d.n > best.n ? d : best), counted[0]);
-  if (busiest && busiest.n > 0) return busiest.dayIndex;
+  /* ⛔ THE FIRST DAY WITH A PROGRAMME, ⛔ not simply the first day. A festival
+     can carry a build day, or a day whose slots were never filled in, and
+     opening on an empty one is the blank this whole rule exists to avoid. */
+  const opening = list.find(d =>
+    (d.stages || []).some(st => (st?.slots || []).length));
+  if (opening) return opening.dayIndex;
 
   /* ⚠ No slot data at all — or every day empty. The last day is the honest
      answer for a finished event; for an event whose dates were never set,

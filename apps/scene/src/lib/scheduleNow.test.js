@@ -333,13 +333,23 @@ const FEST_SLOTS = [
   { dayIndex: 2, date: '2026-08-30', stages: [{ slots: new Array(3).fill({}) }] },
 ];
 
-test('once it is over it opens on the BUSIEST day, not the quietest last one', () => {
-  assert.equal(focusDayIndex(FEST_SLOTS, '2026-09-05'), 1, 'Saturday has the most on');
+/**
+ * ⚠⚠ THIS ASSERTED THE BUSIEST DAY (1) UNTIL 2026-09-01, and the rule it
+ * pinned was mine. By count Saturday IS bigger — nine live acts to Friday's
+ * six — so it was choosing correctly and still produced the worse page.
+ *
+ * ⭐ A finished festival is READ, not navigated: it opens on the night it
+ * opened on, which carries the Welcome to Country and the acts whose profiles
+ * have artwork. Volume was the measurable thing, ⛔ not the right one.
+ */
+test('once it is over it opens on the OPENING night', () => {
+  assert.equal(focusDayIndex(FEST_SLOTS, '2026-09-05'), 0, 'Friday opened the festival');
 });
 
 /**
- * ⛔ BUSYNESS NEVER OUTRANKS WHERE YOU ARE. These are questions about the
- * present, and a reader standing in the field on Sunday wants Sunday.
+ * ⛔ THE OPENING-NIGHT RULE NEVER OUTRANKS WHERE YOU ARE. These are questions
+ * about the present, and a reader standing in the field on Sunday wants
+ * Sunday — not the Friday that is already over.
  */
 test('a running or upcoming festival still opens on today, or on its first day', () => {
   assert.equal(focusDayIndex(FEST_SLOTS, '2026-08-30'), 2, 'standing in Sunday');
@@ -351,11 +361,16 @@ test('with no slot data a finished event still opens on the last day', () => {
   assert.equal(focusDayIndex(FEST, '2026-09-05'), 2);
 });
 
-/* ⛔ An earlier day wins a tie — the opening night, and a stable answer. */
-test('equally full nights resolve to the earlier one', () => {
-  const tied = [
-    { dayIndex: 0, date: '2026-08-28', stages: [{ slots: new Array(5).fill({}) }] },
-    { dayIndex: 1, date: '2026-08-29', stages: [{ slots: new Array(5).fill({}) }] },
+/**
+ * ⛔ THE OPENING NIGHT IS THE FIRST DAY WITH A PROGRAMME, ⛔ not `list[0]`. A
+ * festival can carry a build day, or a day whose slots were never filled in,
+ * and opening on an empty one is the blank the whole rule exists to avoid.
+ */
+test('a build day with nothing on it is skipped', () => {
+  const withBuildDay = [
+    { dayIndex: 0, date: '2026-08-27', stages: [{ slots: [] }] },
+    { dayIndex: 1, date: '2026-08-28', stages: [{ slots: new Array(5).fill({}) }] },
+    { dayIndex: 2, date: '2026-08-29', stages: [{ slots: new Array(9).fill({}) }] },
   ];
-  assert.equal(focusDayIndex(tied, '2026-09-05'), 0);
+  assert.equal(focusDayIndex(withBuildDay, '2026-09-05'), 1);
 });
