@@ -17,13 +17,28 @@ import s from './NotificationPreferences.module.css';
  * their laptop will not see it as "on" there — that is correct, not a
  * bug, because the laptop genuinely has no subscription yet.
  */
-export default function PushNotificationToggle({ session }) {
+export default function PushNotificationToggle({ session, onState }) {
   const [supported, setSupported] = useState(true);
   const [permission, setPermission] = useState('default');
   const [subscribed, setSubscribed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  /**
+   * ⭐ REPORTS ITS STATE UPWARD, and does nothing else differently.
+   *
+   * ⚠⚠ ADDITIVE ONLY, and deliberately so: the channel chips at the top of the
+   * screen need to show whether push is on, and the alternative was a SECOND
+   * reconcilePushState() call racing this one. ⛔ Nothing about subscribing,
+   * unsubscribing, permission handling or rendering changed — this reads the
+   * state this component already computed and hands it to a listener.
+   * The `onState` prop is optional; without it this is a no-op.
+   */
+  useEffect(() => {
+    if (!onState) return;
+    onState(loading ? null : (supported ? subscribed : false));
+  }, [onState, loading, supported, subscribed]);
 
   useEffect(() => {
     const supportedNow = isPushSupported();

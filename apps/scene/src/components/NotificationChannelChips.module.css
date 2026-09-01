@@ -1,0 +1,69 @@
+/* The three channels, as a navigation row. See NotificationChannelChips.jsx.
+
+   ⛔ NO SWITCH STYLES HERE. These are jump links that report a state, not
+   controls. Anything that looks like the toggles below invites a press that
+   changes a setting, and this row deliberately changes nothing. */
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  /* ⚠ ONE ROW AT ANY WIDTH. Wrapping would push the sections these point at
+     further down the page, which is the problem this row exists to fix.
+     ⛔ NO VISIBLE SCROLLBAR, standing UI law. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.row::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .03);
+  cursor: pointer;
+  /* ⚠ 36px minimum so the tap target clears the accessibility floor on a phone;
+     the visual height is smaller than the touchable one. */
+  min-height: 36px;
+  transition: border-color .15s, background .15s;
+}
+
+.chip:hover,
+.chip:focus-visible {
+  border-color: var(--neon2);
+  background: rgba(0, 229, 255, .07);
+}
+
+.label {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.4px;
+  color: #fff;
+}
+
+/* ⭐ The status reads as data, not as a second label: smaller, dimmer by
+   default, and coloured only when it is saying something a reader should act
+   on. ⛔ A green ON on all three chips is three pieces of noise. */
+.status {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: rgba(255, 255, 255, .3);
+}
+
+.on  { color: rgba(255, 255, 255, .45); }
+
+/* ⚠ OFF IS THE ONLY ONE THAT CARRIES COLOUR, because it is the only one that
+   might surprise someone. "Why am I not getting emails" is answered by this
+   word being visible from across the screen. */
+.off {
+  color: #FFB830;
+  font-weight: 600;
+}

@@ -23,10 +23,24 @@ import {
  * itself, and a suppressed row never reaches the email enqueue. The footnote
  * says so, because a switch that silently cannot win is worse than no switch.
  */
-export default function EmailNotificationPreferences({ session }) {
+export default function EmailNotificationPreferences({ session, onState }) {
   const [disabled, setDisabled] = useState(() => new Set());
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
+
+  /**
+   * ⭐ REPORTS THE MASTER SWITCH UPWARD for the channel chips at the top of the
+   * screen. ⛔ The chip reads this; it never reads the database itself, so
+   * there is exactly one answer to "is email on" and no second copy to drift.
+   *
+   * ⚠ `null` WHILE LOADING, ⛔ not false. A chip that says OFF for a moment on
+   * every visit is telling the reader something untrue about their own account,
+   * and OFF is the state a person would act on.
+   */
+  useEffect(() => {
+    if (!onState) return;
+    onState(loading ? null : !disabled.has(EMAIL_MASTER));
+  }, [onState, loading, disabled]);
 
   const userId = session?.user?.id;
   /* ⚠ THE ADDRESS COMES FROM THE SESSION, and the confirmation state with it.

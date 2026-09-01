@@ -13,6 +13,17 @@ import {
 } from '../lib/conversationNotifications';
 import useSeenNotifications from '../hooks/useSeenNotifications';
 import { findOrphanedOffers } from '../lib/orphanedOffers';
+import NotificationChannelChips from '../components/NotificationChannelChips';
+import { SECTION_SCROLL_MARGIN } from '../lib/notificationChannels3';
+
+/**
+ * ⚠ `scroll-margin-top` RATHER THAN A COMPUTED OFFSET. The app header is fixed,
+ * so a section scrolled to `block:'start'` lands underneath it and the heading
+ * the reader was sent to find is the one thing they cannot see. The browser
+ * honours this during its OWN smooth scroll; a manual `scrollBy` afterwards
+ * races the animation and lands somewhere different each time.
+ */
+const SECTION_ANCHOR = { scrollMarginTop: SECTION_SCROLL_MARGIN };
 
 export default function NotificationsScreen() {
   const { session } = useSession();
@@ -34,6 +45,41 @@ export default function NotificationsScreen() {
     if (location.state?.openPrefs) setPrefsOpen(true);
   }, [location]);
   const pollRef = useRef(null);
+
+  /**
+   * ⭐⭐ THE CHIPS NAVIGATE; THE PANELS OWN THE STATE.
+   *
+   * ⚠ `null` UNTIL A PANEL REPORTS, ⛔ never a default of false. The panels load
+   * asynchronously, and a chip that reads OFF for a moment on every visit tells
+   * the reader something untrue about their own account — and OFF is the state
+   * a person acts on. There is deliberately no in-app value: in-app has no off
+   * switch (NP1 mutes per category and nothing disables the feed), so its chip
+   * is always ON. See lib/notificationChannels3.js.
+   */
+  const [pushOn,  setPushOn]  = useState(null);
+  const [emailOn, setEmailOn] = useState(null);
+
+  const inAppRef = useRef(null);
+  const pushRef  = useRef(null);
+  const emailRef = useRef(null);
+
+  /**
+   * ⭐ OPENS THE PANEL, THEN SCROLLS. Both halves are needed: the sections do
+   * not exist while the preferences are collapsed, so scrolling to a ref that
+   * has not mounted is a silent no-op — which is exactly what the reader
+   * experienced before this row existed.
+   *
+   * ⚠ ONE FRAME LATER, via rAF. `setPrefsOpen(true)` schedules a render; the ref
+   * is still null in the same tick. rAF runs after that commit, so the node is
+   * there to scroll to.
+   */
+  function goToChannel(key) {
+    const refs = { in_app: inAppRef, push: pushRef, email: emailRef };
+    setPrefsOpen(true);
+    requestAnimationFrame(() => {
+      refs[key]?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
   // DEF-4 — see the note under load(). `observe` is attached to each row and
   // marks it read once it has actually been on screen.
   const { observe } = useSeenNotifications({
@@ -145,14 +191,37 @@ export default function NotificationsScreen() {
           </button>
         </div>
 
+        {/* ⭐⭐ THE THREE CHANNELS, ABOVE THE FOLD (owner, 2026-09-01: "I opened
+            Settings → Notifications without realising I needed to scroll to
+            find Email"). Two things hid it — the panels are behind MANAGE, and
+            the third is below the fold — so a chip does BOTH: opens the panel
+            and scrolls to the section.
+            ⛔ The chips own no preference state; each panel reports its own. */}
+        {session && (
+          <NotificationChannelChips
+            push={pushOn}
+            email={emailOn}
+            onGo={goToChannel}
+          />
+        )}
+
         {prefsOpen && (
           <>
-            <PushNotificationToggle session={session} />
-            <NotificationPreferences session={session} />
+            {/* ⚠ THE REFS LIVE ON WRAPPERS, ⛔ not inside the panels. A panel
+                returns null while it loads, and a ref on a null render is a
+                scroll target that does not exist at the moment it is needed. */}
+            <div ref={pushRef} style={SECTION_ANCHOR}>
+              <PushNotificationToggle session={session} onState={setPushOn} />
+            </div>
+            <div ref={inAppRef} style={SECTION_ANCHOR}>
+              <NotificationPreferences session={session} />
+            </div>
             {/* E6 · the third channel. A SEPARATE panel because its category
                 list deliberately differs in one place: set_times_released is
                 an EVENTS notice in-app and a SCHEDULE one by email. */}
-            <EmailNotificationPreferences session={session} />
+            <div ref={emailRef} style={SECTION_ANCHOR}>
+              <EmailNotificationPreferences session={session} onState={setEmailOn} />
+            </div>
           </>
         )}
 
