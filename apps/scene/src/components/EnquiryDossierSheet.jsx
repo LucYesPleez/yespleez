@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatDisplayDate } from '../lib/dates';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import { openDirectConversation } from '../lib/messaging';
+import { requestedFeeAmount, formatFee } from '../lib/bookingAgreement';
 import { useConversationUi } from '../lib/conversationUi';
 import { completionFor, requirementLabel } from '@yespleez/requirements';
 import { DecisionBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
@@ -54,6 +55,8 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
   // ⚠ Derived, never stored — the same row is incoming to one side and
   // outgoing to the other, so there is no correct column for it.
   const enqDir   = (enq.direction || 'incoming').toLowerCase();
+  /* ⚠ CANCEL IS TWO STEPS — the middle one. See the decision row below. */
+  const [confirming, setConfirming] = useState(false);
   /* ⭐ ONE RULE, SHARED WITH THE CARD — derived through `normaliseStatus` so
      the raw spellings (`booked`, `confirmed`, `pending`) resolve exactly as
      they do there rather than being re-listed here and drifting. */
@@ -86,10 +89,30 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
   // category vocabulary is the mistake the registry exists to prevent.
   const askLabel = askCategoryLabel(enq.ask_category);
 
-  const fee = [
+  /**
+   * ⛔⛔ "$450 — PAID" WAS A LIE, AND THE WORST KIND: a true-looking one.
+   *
+   * Both halves came from the PROFILE, not from this enquiry. `p.fee` is the
+   * act's rate card and `p.fee_type: 'paid'` means "I want paid work" — ⛔ NOT
+   * "this booking has been paid". Joined with a dash under a heading reading
+   * FEE, on a row about one specific night, it read as a settled payment on a
+   * booking where no money had been discussed, let alone moved.
+   *
+   * ⭐ THREE FEES, THREE FACTS (lib/bookingAgreement):
+   *     the act's RATE      what they charge in general — this, below
+   *     the REQUESTED fee   what this enquiry asked for — enq.proposed_fee
+   *     the AGREED fee      what the parties settled — the agreement
+   * ⛔ And PAID is a fourth, which nothing here can know.
+   */
+  const rate = [
     p.fee ? `$${p.fee}` : null,
-    p.fee_type === 'paid' ? 'Paid' : p.fee_type === 'exposure' ? 'Exposure / door deal' : null,
+    /* ⚠ Said as a PREFERENCE, because that is what the field is. */
+    p.fee_type === 'paid' ? 'paid work only' : p.fee_type === 'exposure' ? 'open to exposure / door deals' : null,
   ].filter(Boolean).join(' — ');
+
+  /* ⭐ What THIS enquiry asked for. ⛔ Never labelled agreed: nobody has
+     agreed it, and the requested amount stays requested however long it sits. */
+  const requestedFee = formatFee(requestedFeeAmount(enq)) || (enq.proposed_fee || '').trim() || null;
 
   /**
    * Open the conversation between these two profiles and hand over to
@@ -269,7 +292,15 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
           {/* R3 · a row appears only when it has something to say. "Not
               stated" is used for FEE alone, where the absence is itself
               decision-relevant to a venue. */}
-          <Row label="FEE">{fee || <span style={{ color: 'var(--muted)' }}>Not stated</span>}</Row>
+          {/* ⭐ THE ENQUIRY'S OWN NUMBER FIRST, and named for what it is. */}
+          <Row label="REQUESTED FEE">
+            {requestedFee || <span style={{ color: 'var(--muted)' }}>Not stated</span>}
+          </Row>
+          {/* ⚠ The act's general rate, clearly a different fact and clearly
+              about the ACT rather than about this night. ⛔ Never beside the
+              requested fee under one FEE heading — that adjacency is what made
+              a rate card read as a payment. */}
+          {rate && <Row label="THEIR USUAL RATE">{rate}</Row>}
           {p.bio && <Row label="ABOUT">{p.bio}</Row>}
           {p.sound && <Row label="SOUND">{p.sound}</Row>}
           {p.years && <Row label="ACTIVE SINCE">{p.years}</Row>}
@@ -337,9 +368,23 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
                * so it offered CANCEL ENQUIRY on every outgoing row including
                * settled ones. Two controls for one decision must read one rule.
                */
+              /* ⭐⭐ TWO STEPS HERE TOO (owner, 2026-09-01). ⛔⛔ THIS SHEET IS
+                 WHERE THE DOUBLE-FIRE HAPPENED: the card and the sheet both
+                 offer cancel, and a one-tap control on each meant two writes
+                 and two notices to the venue for one withdrawal. Guarding only
+                 the card would have left the faster door unguarded. */
               cancellable ? (
-                <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
-                  onClick={() => respond('cancelled')} disabled={busy} />
+                confirming ? (
+                  <>
+                    <DecisionBtn tone="neutral" icon={XIcon} label="KEEP IT"
+                      onClick={() => setConfirming(false)} disabled={busy} />
+                    <DecisionBtn tone="decline" icon={XIcon} label={busy ? 'CANCELLING…' : 'YES, CANCEL'}
+                      onClick={() => respond('cancelled')} disabled={busy} />
+                  </>
+                ) : (
+                  <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
+                    onClick={() => setConfirming(true)} disabled={busy} />
+                )
               ) : null
             ) : (<>
               <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"

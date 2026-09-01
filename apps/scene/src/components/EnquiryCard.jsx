@@ -218,6 +218,9 @@ const EVENT_OWNER_TYPES = new Set(['venue', 'host']);
  */
 export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespond, onPlayDemo, onClear }) {
   const [busy, setBusy]       = useState(false);
+  /* ⚠ CANCEL IS TWO STEPS — this holds the middle one. See the confirmation
+     strip at the foot of the card for why the action is guarded at all. */
+  const [confirming, setConfirming] = useState(false);
   const [profile, setProfile] = useState(enq.profile || null);
   const [expanded, setExpanded] = useState(false);
   // The dossier — the full, readable view. See EnquiryDossierSheet for why
@@ -427,8 +430,11 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
    * already closed the ask; CLEAR is the control for that row.
    */
   const cancelBtn = (enqDir === 'outgoing' && (displayStatus === 'awaiting' || displayStatus === 'interested' || displayStatus === 'accepted'))
+    /* ⛔⛔ OPENS THE CONFIRMATION, ⛔ DOES NOT CANCEL. The write lives on YES,
+       CANCEL in the strip below — see the note there for why this action is
+       guarded. ⛔ Do not restore a direct `respond('cancelled')` here. */
     ? <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
-        onClick={() => respond('cancelled')} disabled={busy} />
+        onClick={() => setConfirming(true)} disabled={busy} />
     : null;
 
   /**
@@ -856,7 +862,7 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
                 {/* "VIEW ENQUIRY" WHEN IT IS MINE — the sheet shows the
                     enquiry I sent, not a dossier on an applicant. */}
                 <DetailBtn accent={accent} label="VIEW ENQUIRY" onClick={() => setSheetOpen(true)} />
-                {cancelBtn || clearBtn}
+                {confirming ? null : (cancelBtn || clearBtn)}
               </div>
             ) : (
               // Settled (accepted/booked/declined): nothing to cancel, so
@@ -872,6 +878,44 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
             </div>
             <ActionButtons />
           </>)}
+
+          {/**
+            * ⭐⭐ CANCEL IS TWO STEPS, ON EVERY SURFACE (owner, 2026-09-01).
+            *
+            * ⛔⛔ IT CANNOT BE UNDONE AND IT IS NO LONGER SILENT. Withdrawing an
+            * ACCEPTED enquiry now notifies the venue and emails them, so a
+            * single tap in a list you are scrolling can reach a real person
+            * before you have finished reading the row. The owner double-fired
+            * exactly this control on 2026-09-01 and sent two notices.
+            *
+            * ⚠ THE PATTERN IS THE CODEBASE'S OWN, not a new one — the same
+            * strip `ApplicationRow` uses for delete, and the one the absorbed
+            * `OutgoingEnquiryRow` used for this very action. The merge onto one
+            * card briefly LOST it, which is what prompted this.
+            *
+            * ⚠ ONLY THE CONFIRM STEP COSTS HEIGHT, and only on the row being
+            * acted on: the resting state is unchanged, and CANCEL ENQUIRY hides
+            * while its confirmation is open so the row never offers the same
+            * action twice.
+            *
+            * ⛔ CLEAR IS DELIBERATELY NOT GUARDED. It hides a settled row from
+            * one list and destroys nothing; dressing it in the same warning
+            * would overstate it.
+            */}
+          {confirming && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,45,45,.08)', border: '1px solid rgba(255,45,45,.3)', borderRadius: 10, padding: '8px 10px', marginTop: 8 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', marginRight: 'auto' }}>Cancel this enquiry?</span>
+              <button type="button" onClick={() => setConfirming(false)} disabled={busy}
+                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'transparent', color: 'rgba(255,255,255,.7)', cursor: 'pointer' }}>
+                KEEP IT
+              </button>
+              <button type="button" disabled={busy}
+                onClick={async () => { await respond('cancelled'); setConfirming(false); }}
+                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,51,51,.5)', background: 'rgba(255,51,51,.15)', color: '#fff', cursor: busy ? 'default' : 'pointer' }}>
+                {busy ? 'CANCELLING…' : 'YES, CANCEL'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

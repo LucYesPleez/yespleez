@@ -210,6 +210,26 @@ test('every cancel control offers the same statuses', () => {
 });
 
 /**
+ * ⭐⭐ CANCEL IS TWO STEPS, ON EVERY SURFACE (owner, 2026-09-01).
+ *
+ * ⛔⛔ IT CANNOT BE UNDONE AND IT IS NO LONGER SILENT — withdrawing an accepted
+ * enquiry notifies AND emails the venue. Both the card and the sheet offer the
+ * control, and one-tap on each is how a single withdrawal sent two notices.
+ * ⛔ Guarding one door and not the other is the same bug with a longer fuse.
+ */
+test('cancel is confirmed before it writes, on both surfaces', () => {
+  const CARD  = read('../components/EnquiryCard.jsx');
+  const SHEET = read('../components/EnquiryDossierSheet.jsx');
+  for (const [name, src] of [['EnquiryCard', CARD], ['EnquiryDossierSheet', SHEET]]) {
+    /* ⛔ The labelled control opens the confirmation; it must never write. */
+    assert.match(src, /label="CANCEL ENQUIRY"\s*\n?\s*onClick=\{\(\) => setConfirming\(true\)\}/,
+      `${name}: CANCEL ENQUIRY writes directly instead of asking first`);
+    assert.match(src, /YES, CANCEL|'YES, CANCEL'/, `${name} has no confirming step`);
+    assert.match(src, /KEEP IT/, `${name} offers no way out of the confirmation`);
+  }
+});
+
+/**
  * ⭐⭐ A VENUE MUST LEARN THAT AN ACCEPTED DATE FELL THROUGH (owner,
  * 2026-09-01: "they need to know to fill the spot after someone pulls out").
  *
