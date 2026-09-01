@@ -19,26 +19,42 @@
 
 .row::-webkit-scrollbar { display: none; }
 
+/* ⭐ THE HOUSE GRADIENT, AS A BORDER. `linear-gradient(135deg, #00E5FF, #BF5FFF)`
+   is the app's own — 44 uses across the codebase, including the NOTIFICATIONS
+   title directly above this row — so the chips read as part of the screen
+   rather than as a new kind of object.
+
+   ⚠⚠ TWO BACKGROUND LAYERS, AND THE FILL MUST BE OPAQUE. A gradient border on a
+   rounded element is `border-color: transparent` plus a padding-box fill over a
+   border-box gradient; there is no `border-image` that respects border-radius.
+   ⛔ The fill CANNOT be the old `rgba(255,255,255,.03)`: a translucent
+   padding-box layer lets the border gradient show straight through the middle
+   of the chip. #111116 is that same 3% white already composited over
+   `--bg: #0a0a0f`, so the chip looks exactly as it did while the border works. */
 .chip {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 7px 13px;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .03);
+  background:
+    linear-gradient(#111116, #111116) padding-box,
+    linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
   cursor: pointer;
   /* ⚠ 36px minimum so the tap target clears the accessibility floor on a phone;
      the visual height is smaller than the touchable one. */
   min-height: 36px;
-  transition: border-color .15s, background .15s;
+  /* ⚠ FILTER, ⛔ not a background transition. A background-IMAGE does not
+     interpolate between two values, so animating the layers above would snap
+     rather than fade. Brightness lifts the fill and the border together. */
+  transition: filter .15s;
 }
 
 .chip:hover,
 .chip:focus-visible {
-  border-color: var(--neon2);
-  background: rgba(0, 229, 255, .07);
+  filter: brightness(1.45);
 }
 
 .label {
