@@ -92,15 +92,32 @@ test('the merged list is sorted across both sources, not concatenated', () => {
  * `pending` must land in the same bucket, whichever function that is. If the
  * sub-tabs ever special-case one source, that is the regression.
  *
- * ⚠ `applicantLabel` IS STILL LIVE — it words the row BADGES, where the asker's
- * own vocabulary belongs. A tab is navigation and must match every surface; a
- * badge is commentary on one row.
+ * ⚠⚠ SUPERSEDED 2026-09-01 — `applicantLabel` NO LONGER WORDS THE BADGES.
+ * "A badge is commentary on one row" was the reasoning, and it produced a row
+ * filed under ACCEPTED wearing a BOOKED sticker. See the badge test below.
  */
 test('both sources share one status mapping', () => {
   assert.match(DASH, /const outStatuses = outgoingItems[\s\S]{0,160}bucket: normaliseStatus\(/,
     'the two sources must be bucketed by one function before any filtering');
   assert.match(DASH, /filteredOut = outStatuses\.filter\(it => \{[\s\S]{0,120}it\.bucket !== outStatusTab/,
     'the filter must read the shared bucket, not a per-source status');
+});
+
+/**
+ * ⭐⭐ THE BADGE IS THE TAB IT SITS IN (owner, 2026-09-01).
+ *
+ * ⛔⛔ "BOOKED" MEANS ONE THING ON THIS SCREEN: on a lineup, playing. The
+ * top-level BOOKED tab counts real gigs (`upcomingGigs`). An accepted enquiry
+ * holds no slot and creates no `lineup_member`, so badging it BOOKED asserted a
+ * booking the same screen was correctly refusing to list.
+ */
+test('the row badge reads the canonical bucket, never a second vocabulary', () => {
+  assert.match(DASH, /const badge = bucket\.toUpperCase\(\)/,
+    'the badge must be the bucket the tab already filtered on');
+  assert.doesNotMatch(DASH, /const badge = applicantLabel\(/,
+    'a second status vocabulary has come back to the badges');
+  assert.doesNotMatch(DASH, /APP_TAB_COLOR\[/,
+    'the badge colour must come from STATUS_TAB_COLOR, keyed by the same word');
 });
 
 test('the tab counts and the stat tile count the same list the tab renders', () => {

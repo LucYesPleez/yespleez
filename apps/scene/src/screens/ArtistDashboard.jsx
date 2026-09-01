@@ -22,10 +22,13 @@ import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
-import { APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
+/* ⚠ `APP_TAB_COLOR` / `applicantLabel` DROPPED 2026-09-01 — the row badges were
+   their last runtime caller and now read the canonical bucket instead. Both stay
+   exported from the pipeline; see the note at the badge. */
+import { OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
 import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
-import { normaliseStatus } from '../lib/enquiryUtils';
+import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -773,9 +776,39 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
               : filteredOut.length === 0
                 ? <p className={s.empty}>{OUT_EMPTY[outStatusTab] || 'Nothing here yet.'}</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {filteredOut.map(({ kind, row }) => {
-                      const badge = applicantLabel(row.status);
-                      const badgeColor = APP_TAB_COLOR[badge] || '#FFD700';
+                    {filteredOut.map(({ kind, row, bucket }) => {
+                      /**
+                       * ⭐⭐ THE BADGE IS THE TAB IT SITS IN (owner, 2026-09-01).
+                       *
+                       * ⛔⛔ IT USED TO BE `applicantLabel(row.status)`, AND ALL
+                       * FOUR WORDS DISAGREED WITH THE TAB ABOVE THEM:
+                       *
+                       *   tab        badge said
+                       *   AWAITING   SUBMITTED
+                       *   INTERESTED BEING CONSIDERED
+                       *   ACCEPTED   BOOKED
+                       *   DECLINED   NOT SELECTED
+                       *
+                       * ⚠⚠ THE THIRD ROW IS WHY THIS IS A DEFECT AND NOT A
+                       * STYLE. "BOOKED" ALREADY MEANS SOMETHING ELSE ON THIS
+                       * SCREEN: the top-level BOOKED tab counts real gigs off
+                       * the LINEUP (`dirCounts.BOOKED = upcomingGigs.length`).
+                       * So an accepted enquiry — which holds no slot and
+                       * creates no `lineup_member` — wore a BOOKED sticker
+                       * while being correctly absent from the BOOKED tab. The
+                       * screen asserted a booking and denied it at once.
+                       *
+                       * ⭐ `bucket` is `normaliseStatus`, already computed for
+                       * the tab and the count, so the badge cannot drift from
+                       * the tab again: it IS the tab.
+                       *
+                       * ⛔ `applicantLabel` is now used by nothing at runtime.
+                       * Left exported — it is still the honest answer to "where
+                       * does the ASKER stand", and a future asker-facing
+                       * surface may want it. ⛔ Do not re-point a badge at it.
+                       */
+                      const badge = bucket.toUpperCase();
+                      const badgeColor = STATUS_TAB_COLOR[badge] || '#FFD700';
                       if (kind === 'enquiry') {
                         return <OutgoingEnquiryRow key={`enq-${row.id}`} enq={row}
                           badge={badge} badgeColor={badgeColor} accent={cfg.accent}
