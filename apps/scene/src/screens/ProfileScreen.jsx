@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { rawStatusesFor } from '../lib/enquiryUtils';
 import { getPersonalProfileId, getOwnerProfiles } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
@@ -1466,9 +1467,30 @@ export default function ProfileScreen() {
                          the grid only paints dots on days it draws anyway.
                          ⛔ Guarded on a session — a guest has no enquiries and
                          `applicant_user_id.eq.undefined` is a 400. */
+                      /**
+                       * ⛔⛔ A WITHDRAWN ASK IS NOT AN ASK. This query had NO
+                       * status filter, so every enquiry ever sent dotted its
+                       * date forever — cancelled ones included. Cancel both
+                       * enquiries for a date and the calendar still said YOU
+                       * ENQUIRED, which is the one thing that dot must not do:
+                       * it exists to stop you asking twice, and here it was
+                       * blocking a date you had deliberately freed up.
+                       *
+                       * ⭐ THE LIVE STATUSES ARE DERIVED, ⛔ never hand-listed.
+                       * `rawStatusesFor` reads the same map `normaliseStatus`
+                       * does, so a status added later cannot quietly fall
+                       * outside this filter — the exact drift a typed-out
+                       * list produces. Settled buckets (declined, which is
+                       * where `cancelled` files) are simply not asked for.
+                       */
                       session?.user?.id
                         ? supabase.from('venue_enquiries').select('date_requested')
                             .eq('venue_user_id', profile.user_id).eq('applicant_user_id', session.user.id)
+                            .in('status', [
+                              ...rawStatusesFor('awaiting',   'outgoing'),
+                              ...rawStatusesFor('interested', 'outgoing'),
+                              ...rawStatusesFor('accepted',   'outgoing'),
+                            ])
                         : Promise.resolve({ data: [] }),
                     ]);
                     setAvailDates(new Set((availRes.data || []).map(r => r.available_date)));

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { rawStatusesFor } from './enquiryUtils.js';
 
 /**
  * ⚠⚠ AN ENQUIRY YOU SENT MUST BE VISIBLE TO YOU.
@@ -221,6 +222,34 @@ test('every cancel control offers the same statuses', () => {
                                 SHEET.indexOf('label="CANCEL ENQUIRY"') + 200);
   assert.match(cancelBtn, /respond\('cancelled'\)/,
     'the sheet is the asker\'s side — `declined` there is the venue\'s verdict');
+});
+
+/**
+ * ⭐⭐ A WITHDRAWN ASK MUST STOP MARKING THE DATE (owner, 2026-09-01).
+ *
+ * ⛔⛔ THE "YOU ENQUIRED" DOT HAD NO STATUS FILTER, so every enquiry ever sent
+ * marked its date forever. Cancelling both asks for 17 Oct left the venue's
+ * availability calendar still saying YOU ENQUIRED — which inverts the dot's
+ * only job. It exists to stop you asking twice; instead it was warning you off
+ * a date you had deliberately freed.
+ */
+test('the availability dot counts only LIVE asks', () => {
+  const live = [
+    ...rawStatusesFor('awaiting',   'outgoing'),
+    ...rawStatusesFor('interested', 'outgoing'),
+    ...rawStatusesFor('accepted',   'outgoing'),
+  ];
+  assert.ok(live.includes('pending'),  'an unanswered ask must still mark the date');
+  assert.ok(live.includes('accepted'), 'an accepted ask must still mark the date');
+  assert.ok(!live.includes('cancelled'), 'a withdrawn ask must not mark the date');
+  assert.ok(!live.includes('declined'),  'a refused ask must not block asking again');
+  assert.ok(!live.includes('rejected'),  'a refused ask must not block asking again');
+
+  const SCREEN = read('../screens/ProfileScreen.jsx');
+  /* ⛔ DERIVED, never a hand-typed status list — that is how a later status
+     quietly falls outside the filter. */
+  assert.match(SCREEN, /\.in\('status', \[\s*\n?\s*\.\.\.rawStatusesFor\('awaiting',\s*'outgoing'\)/,
+    'the enquired-dates query has lost its status filter, or hand-lists statuses');
 });
 
 /**
