@@ -8,6 +8,7 @@ import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismiss
 import { conversationNotificationTypes } from '../lib/conversationNotifications';
 import { findOrphanedOffers } from '../lib/orphanedOffers';
 import useSeenNotifications from '../hooks/useSeenNotifications';
+import InviteTerms from './InviteTerms';
 
 export default function NotifPanel({ onClose }) {
   const navigate = useNavigate();
@@ -415,6 +416,17 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, onOpen, isLast, rootRef,
 
         {/* ⛔ THE EVENT NAME USED TO REPEAT HERE — it moved up beside the
             heading. Do not restore this block. */}
+
+        {/**
+          * ⭐⭐ THE TERMS, BECAUSE THIS ROW ASKS YOU TO DECIDE.
+          *
+          * ⛔⛔ THE BELL SHOWED "ACCEPT / DECLINE" AND NOTHING ELSE — no date,
+          * no fee, no way to know what the gig even was, while both facts sat
+          * unused in this row's own `data`. NotificationsScreen has rendered
+          * them for some time; this twin never did, which is the drift the
+          * destination module's header warns about. One file, both surfaces.
+          */}
+        {notif.type === 'event_invite' && <InviteTerms data={data} />}
 
         {actionable && notif.type === 'slot_offer' && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
