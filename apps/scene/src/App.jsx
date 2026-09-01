@@ -39,6 +39,7 @@ import ScheduleHarness from './screens/event/ScheduleHarness';
 import CreateEventScreen from './screens/CreateEventScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
+import CalendarScreen from './screens/CalendarScreen';
 import InboxScreen from './screens/InboxScreen';
 import ConversationScreen from './screens/ConversationScreen';
 import AccessRequiredScreen from './screens/AccessRequiredScreen';
@@ -421,6 +422,7 @@ function Shell({ session, onSignOut }) {
         <Route path="/create-event"           element={<CreateEventScreen />} />
         <Route path="/event/:id/applications" element={<ApplicationsScreen />} />
         <Route path="/notifications"          element={<NotificationsScreen />} />
+        <Route path="/calendar"               element={<CalendarScreen />} />
         <Route path="/messages"               element={<InboxScreen />} />
         <Route path="/messages/:id"           element={<ConversationScreen />} />
         <Route path="/access-required"        element={<AccessRequiredScreen />} />

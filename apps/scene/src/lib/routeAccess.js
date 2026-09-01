@@ -89,6 +89,8 @@ export const ROUTE_ACCESS = Object.freeze({
   '/messages':                { access: ACCESS.ACCOUNT },
   '/messages/:id':            { access: ACCESS.ACCOUNT },
   '/notifications':           { access: ACCESS.ACCOUNT },
+  /* Calendar sync — the user's own commitments and their private feed URL. */
+  '/calendar':                { access: ACCESS.ACCOUNT },
   '/me':                      { access: ACCESS.ACCOUNT },
   '/profile-edit':            { access: ACCESS.ACCOUNT },
   '/role-select':             { access: ACCESS.ACCOUNT },

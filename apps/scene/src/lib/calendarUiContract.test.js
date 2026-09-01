@@ -51,6 +51,35 @@ test('the event page and the set-times route both pass the calendar context', ()
   }
 });
 
+/* ── the account-level calendar sync (Stage 1) ─────────────────────── */
+
+test('the profile menu offers plain "Calendar" routing to /calendar', () => {
+  const menu = src('../components/ProfileMenu.jsx');
+  assert.match(menu, /label: 'Calendar', onClick: \(\) => go\('\/calendar'\)/,
+    'the menu item is "Calendar", not a settings-flavoured name');
+});
+
+test('the /calendar route is registered in both App.jsx and routeAccess as ACCOUNT', () => {
+  assert.match(src('../App.jsx'), /<Route path="\/calendar"\s+element=\{<CalendarScreen \/>\}/);
+  assert.match(src('./routeAccess.js'), /'\/calendar':\s+\{ access: ACCESS\.ACCOUNT \}/);
+});
+
+test('⛔ the feed endpoint holds NO second generator and NO service key', () => {
+  const fn = src('../../functions/calendar/feed.js');
+  assert.ok(fn.includes("from '../../src/lib/calendarFeed.js'"), 'the endpoint imports the one core');
+  assert.ok(!fn.includes('BEGIN:V'), 'no inline iCalendar text — generation lives in the lib only');
+  assert.ok(!/service[_-]?role/i.test(fn), 'the token + SECURITY DEFINER RPC replace any service key');
+});
+
+test('⛔ master OFF preserves category choices — disable touches enabled only', () => {
+  const prefs = src('./calendarPrefs.js');
+  const disable = prefs.slice(prefs.indexOf('export async function disableCalendarSync'), prefs.indexOf('export async function setCalendarCategory'));
+  assert.ok(disable.includes('enabled: false'));
+  assert.ok(!disable.includes('categories'), 'disabling must not write categories');
+  assert.ok(!disable.includes('token'), 'disabling must not touch the token');
+  assert.ok(!disable.includes('.delete('), 'disabling must never delete the row');
+});
+
 test('⛔ the host editor path (DaySlots) does not grow the control', () => {
   const daySlots = src('../screens/event/DaySlots.jsx');
   assert.ok(!daySlots.includes('onAddToCalendar'),

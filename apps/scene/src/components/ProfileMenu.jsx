@@ -310,6 +310,12 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
       onClick: () => go('/notifications', { openPrefs: true }),
     },
     /**
+     * ⭐ CALENDAR — the account-level sync (YesPleez → the user's calendar).
+     * Plain "Calendar", ⛔ not "Calendar settings" or "Sync calendar": the
+     * screen IS the calendar feature, not a preferences annex.
+     */
+    { label: 'Calendar', onClick: () => go('/calendar') },
+    /**
      * ⭐ SETTINGS IS A DRAWER, AND IT EDITS NOTHING (owner, 2026-08-14).
      *
      * ⛔ IT USED TO OPEN /me, WHICH IS A PROFILE EDITOR — display name, photo,
