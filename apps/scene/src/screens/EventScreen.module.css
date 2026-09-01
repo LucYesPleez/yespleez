@@ -362,6 +362,13 @@
 
 .manageBtn {
   width: 100%;
+  /* ⚠ ONE LINE, OR ITS OWN LINE — never a broken label. Sharing a row with
+     HOST DASH (which does not shrink) squeezed this to 81px at 340px and
+     "MANAGE EVENT ›" wrapped mid-phrase. `min-width` is what makes the row
+     wrap instead: below this the button drops to a full-width line of its own
+     with the label intact. Measured across 280–430px. */
+  min-width: 140px;
+  white-space: nowrap;
   padding: 13px 0;
   background: linear-gradient(var(--card2), var(--card2)) padding-box,
               linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;

@@ -771,7 +771,13 @@ export default function EventHostView({
                 the right-hand stack — leaving the buttons that act on THIS event
                 on one line, and the stack for the ones that change how you are
                 viewing it. */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+            {/* ⚠ WRAPS BELOW ~360px, BY DESIGN. HOST DASH is flexShrink:0 and
+                keeps its width, so MANAGE EVENT (flex:1) absorbed every pixel
+                of shrink and its label broke onto two lines at 340px — measured
+                across 280-430px. Allowing the ROW to wrap lets MANAGE EVENT
+                drop to its own full-width line with its label intact, which is
+                the honest trade: one more line beats a broken word. */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
               {/**
                 * ⚠ THE PINK/WHITE COMBO FROM `HoverProfileBtn` (owner,
                 * 2026-08-16) — the treatment the old profile control used, and
