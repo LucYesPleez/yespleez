@@ -80,6 +80,11 @@ export default function EmailNotificationPreferences({ session }) {
         <div className={s.rowText}>
           <div className={s.label}>EMAIL NOTIFICATIONS</div>
           <div className={s.desc}>
+            Receive important YesPleez activity by email.{' '}
+            {/* ⚠ THE ADDRESS IS SHOWN, and the unconfirmed case is stated
+                plainly. `email_delivery_queue` requires email_confirmed_at, so
+                an unconfirmed account can hold preferences and still never be
+                sent to — silence that would otherwise read as a bug. */}
             {email
               ? (confirmed
                   ? <>Sent to {email}.</>

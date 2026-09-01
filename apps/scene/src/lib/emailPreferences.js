@@ -60,12 +60,13 @@ export const EMAIL_CATEGORIES = [
   },
   {
     key: 'schedule',
-    label: 'SCHEDULE & SET TIMES',
-    /* ⚠⚠ THIS IS AN EMAIL-ONLY CATEGORY and it does not exist in
-       notification_expiry_policy. `slot_changed` and `set_times_released` are
-       mapped to it by email_category_overrides, because "when do I go on" is
-       one question with two triggers. ⛔ The notification registry is untouched,
-       so in-app still files set_times_released under EVENTS. */
+    label: 'SCHEDULE',
+    /* ⚠⚠ AN EMAIL-ONLY CATEGORY. It does not exist in
+       notification_expiry_policy: `slot_changed` and `set_times_released` are
+       mapped here by email_category_overrides, because "when do I go on" is one
+       question with two triggers. ⛔ The notification registry is untouched, so
+       in-app still files set_times_released under EVENTS. That divergence is
+       deliberate and is why this panel is separate from the one above. */
     desc: 'When set times are published, and when your own set time changes.',
     state: 'switch',
   },
@@ -84,20 +85,19 @@ export const EMAIL_CATEGORIES = [
     state: 'switch',
   },
   {
-    key: 'payments',
-    label: 'PAYMENTS',
-    desc: 'Payment requests and receipts.',
-    state: 'always',
-  },
-  {
-    key: 'account',
-    label: 'ACCOUNT',
-    desc: 'Profile claims and account notices.',
+    /* ⚠⚠ ONE ROW, TWO CATEGORIES. `payments` and `account` are separately
+       un-mutable via notification_category_is_mutable(), but a user has one
+       opinion about them and neither has a switch — so presenting two identical
+       ALWAYS ON rows is noise. ⛔ This key is DISPLAY ONLY and is never written
+       to the database; nothing reads it as a category. */
+    key: 'payments_account',
+    label: 'PAYMENTS & ACCOUNT',
+    desc: 'Payment requests, receipts, profile claims and account notices.',
     state: 'always',
   },
   {
     key: 'social',
-    label: 'FOLLOWS & PROFILES',
+    label: 'SOCIAL',
     desc: 'New followers and profile updates. Shown in the app, never emailed.',
     state: 'in_app',
   },
@@ -108,6 +108,14 @@ export const EMAIL_CATEGORIES = [
     state: 'in_app',
   },
 ];
+
+/**
+ * ⭐ THE ONLY KEYS THIS PANEL MAY WRITE. Derived from the list above rather than
+ * restated, so a row added with the wrong `state` cannot quietly become
+ * writable. ⛔ `payments_account` is display-only and must never appear here.
+ */
+export const WRITABLE_EMAIL_CATEGORIES =
+  EMAIL_CATEGORIES.filter(c => c.state === 'switch').map(c => c.key);
 
 /**
  * Read the caller's email preferences.
