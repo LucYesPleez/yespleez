@@ -135,13 +135,77 @@ test('the performer surface renders the shared enquiry chrome, not its own copy'
  * places i applied to." A withdrawal is not a verdict; filing it as one makes
  * the rejections list useless for the thing it is for.
  */
+/* ⚠ THE WRITE MOVED (2026-09-01) to lib/cancelEnquiry.js — HostDashboard needed
+   the same decision and had been open-coding a broken one. The law is unchanged;
+   only its address is. */
 test('cancelling writes `cancelled` and hides the row — it never writes `declined`', () => {
-  const fn = DASH.slice(DASH.indexOf('async function handleCancelEnquiry'));
-  const body = fn.slice(0, fn.indexOf('}\n'));
-  assert.match(body, /status: 'cancelled'/, 'a withdrawal must not be filed as the venue\'s verdict');
-  assert.doesNotMatch(body, /status: 'declined'/);
-  assert.match(body, /applicant_cleared_at: new Date\(\)\.toISOString\(\)/,
+  const CANCEL = read('./cancelEnquiry.js');
+  assert.match(CANCEL, /status: 'cancelled'/, 'a withdrawal must not be filed as the venue\'s verdict');
+  assert.doesNotMatch(CANCEL, /status: 'declined'/);
+  assert.match(CANCEL, /applicant_cleared_at: new Date\(\)\.toISOString\(\)/,
     'cancelling must also remove the row from the asker\'s own list');
+});
+
+/**
+ * ⭐⭐ ONE CANCEL, NOT ONE PER DASHBOARD.
+ *
+ * ⛔⛔ THIS IS THE DEFECT THAT MADE THE FIX NECESSARY. HostDashboard routed
+ * every id through `allApps` — the APPLICATIONS list — so an outgoing enquiry
+ * fell through `if (!app) return` and CANCEL ENQUIRY wrote nothing at all,
+ * silently. EnquiryDossierSheet meanwhile wrote `declined`. Three surfaces,
+ * three answers, one decision.
+ */
+test('no dashboard writes the cancel itself', () => {
+  for (const f of ['../screens/ArtistDashboard.jsx', '../screens/HostDashboard.jsx']) {
+    const SRC = read(f);
+    assert.doesNotMatch(SRC, /status: 'cancelled'/,
+      `${f} has re-implemented the cancel write instead of calling cancelEnquiry`);
+    assert.match(SRC, /cancelEnquiry\(/, `${f} must call the shared cancel`);
+  }
+});
+
+/**
+ * ⭐ CANCEL AND ITS CONFIRMATION MUST AGREE ABOUT WHICH ROWS QUALIFY.
+ * `accepted` became cancellable on 2026-09-01 (owner: plans fall through);
+ * `declined` stays out — CLEAR is that row's control.
+ */
+test('every cancel control offers the same statuses', () => {
+  const CARD  = read('../components/EnquiryCard.jsx');
+  const ROW   = read('../components/OutgoingEnquiryRow.jsx');
+  const SHEET = read('../components/EnquiryDossierSheet.jsx');
+  for (const [name, src] of [['EnquiryCard', CARD], ['OutgoingEnquiryRow', ROW], ['EnquiryDossierSheet', SHEET]]) {
+    assert.match(src, /'accepted'/, `${name} must offer cancel on an accepted ask`);
+  }
+  /* ⛔ The sheet had NO gate at all and offered cancel on settled rows. */
+  assert.match(SHEET, /const cancellable =/, 'the dossier sheet must gate its cancel button');
+  /* ⚠ SCOPED TO THE CANCEL BUTTON. `respond('declined')` is CORRECT further
+     down in the same file — that is the recipient's DECLINE on an incoming
+     enquiry. Only the control LABELLED cancel must never write it. */
+  const cancelBtn = SHEET.slice(SHEET.indexOf('label="CANCEL ENQUIRY"') - 200,
+                                SHEET.indexOf('label="CANCEL ENQUIRY"') + 200);
+  assert.match(cancelBtn, /respond\('cancelled'\)/,
+    'the sheet is the asker\'s side — `declined` there is the venue\'s verdict');
+});
+
+/**
+ * ⭐⭐ A VENUE MUST LEARN THAT AN ACCEPTED DATE FELL THROUGH (owner,
+ * 2026-09-01: "they need to know to fill the spot after someone pulls out").
+ *
+ * ⛔ AND ONLY THEN. Withdrawing an ask nobody answered is not news.
+ */
+test('cancelling an accepted ask notifies the venue, and only then', () => {
+  const CANCEL = read('./cancelEnquiry.js');
+  assert.match(CANCEL, /if \(wasAccepted\) \{/, 'the notice must be gated on the prior status');
+  assert.match(CANCEL, /wasAccepted = normaliseStatus\(/,
+    'read the status BEFORE the write — afterwards every row is `cancelled`');
+  assert.match(CANCEL, /type:\s*'booking_cancelled'/,
+    'an unregistered type renders as an inert row with no icon and nowhere to go');
+  assert.match(CANCEL, /toUserId:\s*enq\.venue_user_id/,
+    'address from the row — profiles.user_id is not an identity');
+  /* ⛔ Telling a venue an act pulled out of a booking that is still live is
+     worse than the silence this replaced. */
+  assert.match(CANCEL, /if \(error\) return \{ error \};[\s\S]*if \(wasAccepted\)/,
+    'a failed write must not notify — the error return must come FIRST');
 });
 
 test('a cancelled ask leaves the venue\'s NEW pile', () => {

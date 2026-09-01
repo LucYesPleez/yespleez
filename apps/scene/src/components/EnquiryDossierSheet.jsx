@@ -8,6 +8,7 @@ import { completionFor, requirementLabel } from '@yespleez/requirements';
 import { DecisionBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
 import { askCategoryLabel } from '@yespleez/ask-categories';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { normaliseStatus } from '../lib/enquiryUtils';
 import ProfileCard from './ProfileCard';
 
 /**
@@ -53,6 +54,10 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
   // ⚠ Derived, never stored — the same row is incoming to one side and
   // outgoing to the other, so there is no correct column for it.
   const enqDir   = (enq.direction || 'incoming').toLowerCase();
+  /* ⭐ ONE RULE, SHARED WITH THE CARD — derived through `normaliseStatus` so
+     the raw spellings (`booked`, `confirmed`, `pending`) resolve exactly as
+     they do there rather than being re-listed here and drifting. */
+  const cancellable = ['awaiting', 'interested', 'accepted'].includes(normaliseStatus(enq));
   const p        = enq.profile || {};
   const pt       = PROFILE_TYPES[p.type || enq.applicant_type];
   const accent   = pt?.accent || '#00E5FF';
@@ -322,8 +327,20 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
               venue. The card's fix stopped one tap short of here. */}
           <div className="yp-decision-row" style={{ marginTop: 0 }}>
             {enqDir === 'outgoing' ? (
-              <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
-                onClick={() => respond('declined')} disabled={busy} />
+              /**
+               * ⛔⛔ `cancelled`, ⛔ NOT `declined`. This wrote the VENUE'S
+               * verdict onto the asker's own withdrawal, filing "I changed my
+               * mind" as "I was turned down" — the exact defect fixed on the
+               * card on 2026-08-14, which stopped one tap short of this sheet.
+               *
+               * ⚠⚠ AND THE SAME STATUS GATE AS THE CARD. This sheet had NONE,
+               * so it offered CANCEL ENQUIRY on every outgoing row including
+               * settled ones. Two controls for one decision must read one rule.
+               */
+              cancellable ? (
+                <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
+                  onClick={() => respond('cancelled')} disabled={busy} />
+              ) : null
             ) : (<>
               <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
                 onClick={() => respond('shortlisted')} disabled={busy} />

@@ -69,8 +69,14 @@ export const OUT_EMPTY = {
  * The columns an outgoing enquiry row needs. Declared beside the fetch that
  * uses them so a field added to the row cannot be left unselected.
  */
+/* ⚠ `venue_user_id` IS FOR DELIVERY, not display. Cancelling an ACCEPTED ask
+   notifies the venue, and the row is the only honest source of who they are —
+   `profiles.user_id` is NULL for most profiles and shared across one account's
+   profiles, so it can never address anyone.
+   ⛔ KEEP THIS COMMENT ABOVE THE EXPORT. `outgoingAsksContract` asserts the
+   string literal sits directly after the `=`. */
 export const OUTGOING_ENQUIRY_COLUMNS =
-  'id, status, created_at, date_requested, note, venue_profile_id, event_id, ask_category';
+  'id, status, created_at, date_requested, note, venue_profile_id, venue_user_id, event_id, ask_category';
 
 const VENUE_COLUMNS = 'id, name, type, avatar, avatar_thumb, location, state, suburb';
 

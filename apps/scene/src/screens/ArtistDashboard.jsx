@@ -23,6 +23,7 @@ import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
 import { APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
+import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
 import { normaliseStatus } from '../lib/enquiryUtils';
 import EnquiryCalendar from '../components/EnquiryCalendar';
@@ -355,21 +356,29 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
    * from the other side, and agreeing with it here means the failure is a
    * no-op rather than an error.
    *
-   * ⚠ `declined` IS THE EXISTING STATUS, not a new `cancelled` one. It is what
-   * EnquiryCard's CANCEL ENQUIRY writes on the venue and host surfaces, what
-   * the OUTGOING sub-tabs already bucket, and what the venue's own list
-   * already reads. A new status would need a home in four places to say the
-   * same thing.
+   * ⚠⚠ THIS BLOCK SAID `declined` AND THE CODE BELOW ALREADY SAID `cancelled`.
+   * The status is `cancelled` — the asker's withdrawal, kept apart from the
+   * venue's verdict (owner, 2026-08-14). Both status maps understand it.
    *
-   * ⛔ NO NOTIFICATION. Cancelling is the asker stepping back, not news the
-   * venue is owed — the same reason declining an offer notifies nobody.
+   * ⚠ NO NOTIFICATION ON AN UNANSWERED ASK. Withdrawing something nobody has
+   * replied to is the asker stepping back and the venue lost nothing.
+   * ⭐ BUT AN ACCEPTED ONE DOES NOTIFY (owner, 2026-09-01) — a venue that
+   * agreed a date has to know the spot is open again in time to refill it.
+   * That split lives in `lib/cancelEnquiry`, not here.
    */
-  async function handleCancelEnquiry(enquiryId) {
+  /**
+   * ⭐ MOVED INTO `lib/cancelEnquiry` (2026-09-01). The write is unchanged; what
+   * it gained is the venue's notice on an ACCEPTED ask, and a second caller —
+   * HostDashboard, whose own cancel wrote nothing at all. Two dashboards
+   * open-coding one decision is how the `declined`/`cancelled` split happened.
+   *
+   * ⚠ TAKES THE ROW, not an id: the notice needs the venue's delivery identity
+   * and the status it is cancelling, and neither survives an id.
+   */
+  async function handleCancelEnquiry(enq) {
     if (!profile?.id) return;
-    await supabase.from('venue_enquiries')
-      .update({ status: 'cancelled', applicant_cleared_at: new Date().toISOString() })
-      .eq('id', enquiryId)
-      .eq('applicant_profile_id', profile.id);
+    const { error } = await cancelEnquiry(enq, profile.id, profile.name);
+    if (error) return;
     queryClient.invalidateQueries({ queryKey: ['artistDashboard', userId, cfg.profileType] });
   }
 

@@ -52,7 +52,10 @@ export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent, onC
    * a settled row (accepted / declined / booked) has nothing left to cancel.
    */
   const bucket = normaliseStatus({ ...enq, direction: 'outgoing' });
-  const canCancel = Boolean(onCancel) && ['awaiting', 'interested'].includes(bucket);
+  /* ⭐ `accepted` included (owner, 2026-09-01) — see the matching note in
+     EnquiryCard. ⚠ THIS LIST AND THAT ONE MUST AGREE: they are two renderings
+     of one decision, on two dashboards, and they have drifted before. */
+  const canCancel = Boolean(onCancel) && ['awaiting', 'interested', 'accepted'].includes(bucket);
 
   /**
    * ⭐ CLEAR — only on a row that is FINISHED, and only ever a hide.
@@ -138,14 +141,18 @@ export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent, onC
           is also what both the OUTGOING sub-tabs and the venue's own view
           already understand, so no new status enters the vocabulary.
 
-          ⚠ ONLY WHILE IT IS STILL OPEN. `normaliseStatus` is the same
-          bucketing every tab uses, so this button can never disagree with the
-          tab the row is sitting in — settled rows (accepted / declined /
-          booked) have nothing left to cancel.
+          ⚠ ONLY WHILE THERE IS SOMETHING TO WITHDRAW. `normaliseStatus` is the
+          same bucketing every tab uses, so this button can never disagree with
+          the tab the row is sitting in. `declined` is the one settled state
+          with nothing left to cancel — CLEAR is that row's control.
+
+          ⭐ `accepted` IS CANCELLABLE (owner, 2026-09-01). Plans fall through,
+          and an act with no way to say so simply goes silent on the venue.
 
           ⚠ TWO STEPS, matching ApplicationRow's delete directly above it in
-          the same list. Cancelling notifies nobody and cannot be undone, so a
-          single tap next to the card you were reading is too cheap. */}
+          the same list. Cancelling cannot be undone, and on an ACCEPTED ask it
+          now tells the venue their spot is open again — so a single tap next
+          to the card you were reading is too cheap. */}
       {/* ⚠ ONLY THE CONFIRM STEP COSTS HEIGHT, and only on the one row you are
           acting on. That is the trade: the resting state adds nothing, and the
           moment you are deciding is the moment a row may grow. */}
@@ -157,7 +164,10 @@ export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent, onC
             KEEP IT
           </button>
           <button type="button" disabled={busy}
-            onClick={async () => { setBusy(true); await onCancel(enq.id); setBusy(false); setConfirming(false); }}
+            /* ⚠ THE ROW, ⛔ not `enq.id`. Cancelling an accepted ask notifies
+               the venue, and the delivery identity plus the status being
+               cancelled live on the row — an id alone cannot address anyone. */
+            onClick={async () => { setBusy(true); await onCancel(enq); setBusy(false); setConfirming(false); }}
             style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,51,51,.5)', background: 'rgba(255,51,51,.15)', color: '#fff', cursor: busy ? 'default' : 'pointer' }}>
             {busy ? 'CANCELLING…' : 'YES, CANCEL'}
           </button>

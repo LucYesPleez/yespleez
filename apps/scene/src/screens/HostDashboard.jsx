@@ -54,6 +54,7 @@ import AvailabilitySection from '../components/AvailabilitySection';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
+import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
@@ -832,13 +833,51 @@ export default function HostDashboard({ userId: userIdProp }) {
     queryClient.invalidateQueries({ queryKey: ['hostDashboard', userId] });
   }
 
+  /**
+   * ⛔⛔ THIS PANEL HOLDS TWO TABLES, AND THIS HANDLER KNEW ABOUT ONE.
+   *
+   * `panelEnquiries` is `mappedEnquiries` (APPLICATIONS, filtered to events
+   * this promoter owns) merged with `mappedOutgoing` (VENUE_ENQUIRIES they
+   * sent). Every id was looked up in `allApps` alone, so an outgoing enquiry
+   * fell straight through `if (!app) return` — CANCEL ENQUIRY wrote nothing,
+   * said nothing, and closed the sheet. Worse, a promoter who owns NO events
+   * never even loads `allApps`, so every one of their outgoing enquiries was
+   * uncancellable at every status.
+   *
+   * ⚠ THE DISCRIMINATOR IS `venue_profile_id`, the same one `handleClearEnquiry`
+   * already uses — applications mapped into the enquiry shape do not carry it.
+   * ⛔ Do not switch on `direction`: it is derived and viewer-relative, and an
+   * application can be incoming too.
+   */
   async function handleEnquiryRespond(id, status) {
+    const enq = panelEnquiries.find(e => e.id === id);
+    if (enq?.venue_profile_id) {
+      /* ⛔ A promoter cannot ANSWER their own ask — the venue decides that.
+         Withdrawing it is the one move that is theirs, so it is the only
+         status this leg accepts. */
+      if (status !== 'cancelled') return;
+      await handleCancelEnquiry(enq);
+      return;
+    }
     // ⛔ ONLY the promoter's INCOMING applications are theirs to answer. An
     // enquiry they SENT is the venue's to decide; a status write from this side
     // would be the asker marking their own request accepted.
     const app = allApps.find(a => a.id === id);
     if (!app) return;
     await respondApp(id, status, app.artist_id, evtMap[app.event_id]?.name);
+  }
+
+  /**
+   * ⭐ WITHDRAWING AN ASK THIS PROMOTER SENT. The write and the venue's notice
+   * both live in `lib/cancelEnquiry` so this screen and ArtistDashboard cannot
+   * disagree about what cancelling means — they already had, which is why one
+   * of them wrote `declined`.
+   */
+  async function handleCancelEnquiry(enq) {
+    if (!profile?.id) return;
+    const { error } = await cancelEnquiry(enq, profile.id, profile.name);
+    if (error) return;
+    queryClient.invalidateQueries({ queryKey: ['hostDashboard', userId] });
   }
 
   // Needs attention

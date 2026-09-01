@@ -387,7 +387,19 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
    * The dashboards translate `cancelled` into "also hide this from me"; here
    * the card only reports the decision, as it does for every other status.
    */
-  const cancelBtn = (enqDir === 'outgoing' && (displayStatus === 'awaiting' || displayStatus === 'interested'))
+  /**
+   * ⭐ `accepted` IS CANCELLABLE (owner, 2026-09-01). Plans fall through, and
+   * an act that can no longer play a night it was accepted for had NO way to
+   * say so — the only exits were to message the venue or to go silent.
+   *
+   * ⚠ `accepted` IS THE BOOKED STATE. `OUTGOING_STATUS_MAP` folds `booked` and
+   * `confirmed` into `accepted`, so this one word covers all three and the
+   * outgoing copy map's `booked` key is unreachable.
+   *
+   * ⛔ `declined` STAYS OUT. There is nothing to withdraw from an answer that
+   * already closed the ask; CLEAR is the control for that row.
+   */
+  const cancelBtn = (enqDir === 'outgoing' && (displayStatus === 'awaiting' || displayStatus === 'interested' || displayStatus === 'accepted'))
     ? <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
         onClick={() => respond('cancelled')} disabled={busy} />
     : null;
