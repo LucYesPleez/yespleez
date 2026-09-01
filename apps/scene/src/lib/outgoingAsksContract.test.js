@@ -161,8 +161,18 @@ test('cancelling writes `cancelled` and hides the row — it never writes `decli
   const CANCEL = read('./cancelEnquiry.js');
   assert.match(CANCEL, /status: 'cancelled'/, 'a withdrawal must not be filed as the venue\'s verdict');
   assert.doesNotMatch(CANCEL, /status: 'declined'/);
-  assert.match(CANCEL, /applicant_cleared_at: new Date\(\)\.toISOString\(\)/,
-    'cancelling must also remove the row from the asker\'s own list');
+  /* ⚠⚠ THE CLEARED COLUMN IS DERIVED, NOT NAMED (2026-09-01). It was hard-coded
+     to `applicant_cleared_at`, which is only correct when the APPLICANT is the
+     one cancelling. A venue withdrawing an offer it sent left its own column
+     null — so its list re-fetched the row and the cancel looked like a no-op —
+     while writing the applicant's column would have hidden the row from the
+     artist, who never asked for it to go. */
+  assert.match(CANCEL, /\[clearedCol\]: new Date\(\)\.toISOString\(\)/,
+    'cancelling must remove the row from the CANCELLER\'s own list, whichever side that is');
+  assert.match(CANCEL, /clearedColumnFor\(enq, actingProfileId\)/,
+    'the cleared column must come from the shared helper, never be re-derived');
+  assert.match(CANCEL, /\.eq\(scopeCol, actingProfileId\)/,
+    'the write must be scoped to the side that is acting');
 });
 
 /**
@@ -175,7 +185,11 @@ test('cancelling writes `cancelled` and hides the row — it never writes `decli
  * three answers, one decision.
  */
 test('no dashboard writes the cancel itself', () => {
-  for (const f of ['../screens/ArtistDashboard.jsx', '../screens/HostDashboard.jsx']) {
+  /* ⚠⚠ VenueDashboard ADDED 2026-09-01. It was writing `status` directly, which
+     set no cleared column and sent no notice — so a venue withdrawing its own
+     offer saw the row come straight back. Three screens open-coding one
+     decision is how the first cancel bug happened; this is the third. */
+  for (const f of ['../screens/ArtistDashboard.jsx', '../screens/HostDashboard.jsx', '../screens/VenueDashboard.jsx']) {
     const SRC = read(f);
     assert.doesNotMatch(SRC, /status: 'cancelled'/,
       `${f} has re-implemented the cancel write instead of calling cancelEnquiry`);
@@ -242,8 +256,15 @@ test('cancelling an accepted ask notifies the venue, and only then', () => {
     'read the status BEFORE the write — afterwards every row is `cancelled`');
   assert.match(CANCEL, /type:\s*'booking_cancelled'/,
     'an unregistered type renders as an inert row with no icon and nowhere to go');
-  assert.match(CANCEL, /toUserId:\s*enq\.venue_user_id/,
-    'address from the row — profiles.user_id is not an identity');
+  /* ⚠ ADDRESSED TO THE OTHER SIDE, whichever side that is — and from the ROW,
+     because `profiles.user_id` is not an identity. */
+  assert.match(CANCEL, /toUserId:\s*\(isVenueSide \? enq\.applicant_user_id : enq\.venue_user_id\)/,
+    'the notice must go to the party who did NOT cancel');
+  /* ⛔ ONE MESSAGE FOR BOTH DIRECTIONS WOULD LIE TO ONE OF THEM: an act pulling
+     out frees a spot; a venue withdrawing takes a booking away. */
+  assert.match(CANCEL, /has withdrawn their offer/,
+    'a venue cancelling must not tell the artist their own spot is open again');
+  assert.match(CANCEL, /has pulled out/, 'the applicant-side wording is gone');
   /* ⛔ Telling a venue an act pulled out of a booking that is still live is
      worse than the silence this replaced. */
   assert.match(CANCEL, /if \(error\) return \{ error \};[\s\S]*if \(wasAccepted\)/,
