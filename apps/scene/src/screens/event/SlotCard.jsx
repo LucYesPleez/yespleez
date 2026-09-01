@@ -159,7 +159,7 @@ function PersonActions({ claim, viewerProfileId, navigate, msgBusy, setMsgBusy, 
   );
 }
 
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, onNotify, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, onNotify, onAddToCalendar, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
@@ -825,6 +825,28 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
               </button>
             )}
           </div>
+
+          {/**
+            * ⭐ ADD TO CALENDAR — the confirmed set as a standard .ics file.
+            *
+            * ⛔ HANDLER-GATED, the card's own law: the surfaces that can build
+            * a calendar event (SchedulePortrait, holding the event and venue)
+            * pass the handler, and they pass it ONLY for a confirmed set the
+            * schedule can place on a clock — `lib/calendarEvent` owns that
+            * gate. A draft, offered, declined or timeless slot never sees
+            * this control, and no second copy of the eligibility rules lives
+            * here.
+            */}
+          {onAddToCalendar && (
+            <div style={{ marginBottom: isHost ? 9 : 0 }}>
+              <SlotManageBtn
+                icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>}
+                label="ADD TO CALENDAR"
+                accent="#4A9EFF"
+                onClick={e => { e.stopPropagation(); onAddToCalendar(); }}
+              />
+            </div>
+          )}
 
           {isHost && (
             <>

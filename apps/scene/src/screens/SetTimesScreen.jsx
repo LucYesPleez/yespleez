@@ -89,7 +89,9 @@ export default function SetTimesScreen() {
       </header>
 
       {published ? (
-        <SchedulePortrait resolved={d.schedule} />
+        <SchedulePortrait resolved={d.schedule}
+          /* ⭐ ADD TO CALENDAR context, same as the event page's projection. */
+          calendar={{ event, venueProfile: d.venueProfile }} />
       ) : (
         <div style={{
           border: '1px solid var(--border)', borderRadius: 14, padding: '26px 20px',

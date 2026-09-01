@@ -41,6 +41,7 @@ import { slotGrid, stageGaps, peekScrollTop } from '../../lib/schedulePortrait';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useNowMinute } from '../../hooks/useNowMinute';
 import { slotStates, phaseLabel, focusDayIndex, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
+import { calendarEventsBySlot, downloadCalendarEvent } from '../../lib/calendarEvent';
 import { today } from '../../lib/dates';
 import FollowHeartBtn from '../../components/FollowHeartBtn';
 import SlotCard from './SlotCard';
@@ -156,8 +157,18 @@ const DAY_REACHED_PX = 96;
    without this puts the live card visibly low. */
 const PEEK_FADE_PX = 34;
 
-export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
+/**
+ * @param calendar Optional `{ event, venueProfile }` context for ADD TO
+ *   CALENDAR. Screens that hold the event row pass it; surfaces that do not
+ *   (the harness, the host editor's DaySlots path) simply never grow the
+ *   control — same rule as every handler-gated control on SlotCard.
+ */
+export default function SchedulePortrait({ resolved, allMixSlots = [], calendar = null }) {
   const shape = scheduleShape(resolved);
+  /* ⭐ ONE MAP FOR THE WHOLE SCHEDULE — which confirmed, clock-placeable sets
+     may offer ADD TO CALENDAR. Computed here so the cards only look up; the
+     eligibility rules live in `lib/calendarEvent`, ⛔ not in any component. */
+  const calBySlot = calendar?.event ? calendarEventsBySlot(resolved, calendar) : null;
   /**
    * ⭐⭐ WHERE THE NIGHT IS UP TO (owner, 2026-08-21): the set that is PLAYING
    * swells and takes some vibrancy, the sets that have PLAYED are muted, and
@@ -446,7 +457,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
               single-stage event is simply a pager with one page — same cards,
               same drag, same live states — so there is no second layout that
               can drift away from this one. */}
-          <StagePager day={day} allMixSlots={allMixSlots} now={now} sync={stageSync} />
+          <StagePager day={day} allMixSlots={allMixSlots} now={now} sync={stageSync} calBySlot={calBySlot} />
         </div>
       ))}
       </div>
@@ -464,7 +475,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
     already 1,000 lines deciding what a punter may see. Where the night is up
     to is not its question — a wrapper can swell and mute the finished card
     without a third state entering the one component both paths share. */
-function Card({ entry, allMixSlots, state, live, neighbour = false }) {
+function Card({ entry, allMixSlots, state, live, neighbour = false, calBySlot = null }) {
   /**
    * ⭐⭐ THE HANDOVER BETWEEN STATES IS ANIMATED (owner, 2026-08-21): a set
    * FADES ON as it starts, and as it finishes it fades out completely and
@@ -504,6 +515,12 @@ function Card({ entry, allMixSlots, state, live, neighbour = false }) {
         claim={entry.claim}
         isHost={false}
         allMixSlots={allMixSlots}
+        /* ⭐ HANDLER-GATED like every SlotCard control: only a confirmed set
+           the lib could place on a clock gets an entry in `calBySlot`, so an
+           offered, draft, declined or timeless slot never grows the button. */
+        onAddToCalendar={calBySlot?.[entry.slot.id]
+          ? () => downloadCalendarEvent(calBySlot[entry.slot.id])
+          : undefined}
       />
       {live && <SetStrip live={live} claim={entry.claim} />}
     </div>
@@ -654,7 +671,7 @@ function SetStrip({ live, claim }) {
  * ⭐ Stage chips ride above, under the day chips' own law: lit by the
  * sideways SCROLL (not the click), tap to jump, ⛔ never a filter.
  */
-function StagePager({ day, allMixSlots, now, sync }) {
+function StagePager({ day, allMixSlots, now, sync, calBySlot = null }) {
   /* ⚠ ONE MAP FOR THE WHOLE DAY, so every stage answers from the same instant.
      Computed here rather than per cell: `playStates` walks the shared axis to
      work out the midnight rollover, and calling it per card would redo that
@@ -943,6 +960,7 @@ function StagePager({ day, allMixSlots, now, sync }) {
                   state={cellState(cell.entry.slot.id, sIdx)}
                   neighbour={isNeighbour(i, sIdx)}
                   live={states.get(cell.entry.slot.id)}
+                  calBySlot={calBySlot}
                 />
               </div>
             ))}

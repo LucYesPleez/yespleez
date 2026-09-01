@@ -240,7 +240,10 @@ export default function EventScreen() {
        * organiser may announce a bill with the running order still withheld.
        */
       setTimes={d.showTimesPublicly && d.totalSlots > 0
-        ? <SchedulePortrait resolved={d.schedule} allMixSlots={allMixSlots} />
+        ? <SchedulePortrait resolved={d.schedule} allMixSlots={allMixSlots}
+            /* ⭐ ADD TO CALENDAR context — lets a confirmed set export itself
+               as a standard .ics. Eligibility lives in lib/calendarEvent. */
+            calendar={{ event, venueProfile: d.venueProfile }} />
         : null}
     />
   );
