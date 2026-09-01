@@ -333,9 +333,38 @@ export function focusDayIndex(days = [], todayStr = '') {
   const upcoming = list.find(d => d.date && d.date > todayStr);
   if (upcoming) return upcoming.dayIndex;
 
-  /* ⚠ Every day is in the past — or none of them carries a date at all, which
-     is a real state on an event whose dates were never set. The last day is the
-     honest answer to the first case; for the second, `list[0]` would be as
-     arbitrary as anything, so the LAST stays consistent with it. */
+  /**
+   * ⭐⭐ ONCE IT IS OVER, OPEN ON THE BIGGEST NIGHT (owner, 2026-09-01: "show
+   * the main part of the festival, go the friday night or sat night").
+   *
+   * ⛔⛔ IT USED TO BE THE LAST DAY, and on a real programme that is the
+   * wind-down. Neverland Weekender runs two stages on Friday and Saturday and
+   * three workshops on Sunday, so a finished festival opened on the quietest
+   * day it has — and with the LIVE stage selected, on nothing at all. The
+   * reasoning for `last` ("the most recent thing that happened") is true of a
+   * festival still in living memory and wrong as an answer to "what was this?".
+   *
+   * ⚠ ONLY WHEN EVERY DAY IS PAST. A festival running now still opens on
+   * TODAY, and one still to come on its FIRST day — those are questions about
+   * where you are, and busyness must not outrank them.
+   *
+   * ⚠ FALLS BACK TO LAST when no day carries slots. Callers that pass bare
+   * `{ dayIndex, date }` days — and there are some — keep exactly the old
+   * behaviour, which is why the original rule is preserved below rather than
+   * replaced.
+   */
+  const counted = list.map(d => ({
+    dayIndex: d.dayIndex,
+    n: (d.stages || []).reduce((sum, st) => sum + ((st?.slots || []).length), 0),
+  }));
+  /* ⛔ `>` not `>=` — an earlier day wins a tie. Between two equally full
+     nights the opening one is the more natural answer, and it keeps the result
+     stable rather than drifting to whichever came last. */
+  const busiest = counted.reduce((best, d) => (d.n > best.n ? d : best), counted[0]);
+  if (busiest && busiest.n > 0) return busiest.dayIndex;
+
+  /* ⚠ No slot data at all — or every day empty. The last day is the honest
+     answer for a finished event; for an event whose dates were never set,
+     `list[0]` would be as arbitrary as anything, so LAST stays consistent. */
   return list[list.length - 1].dayIndex;
 }
