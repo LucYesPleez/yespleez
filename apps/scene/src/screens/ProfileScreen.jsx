@@ -795,7 +795,26 @@ export default function ProfileScreen() {
         aboutProfileId: enquiryProf.id ?? null,
         type:    'availability_request',
         message: `${enquiryProf.name} enquired about ${new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}.`,
-        data:    { enquiry_id: inserted.id, date_requested: pickerDate, venue_name: profile.name || null },
+        /**
+         * ⭐⭐ `recipient_type` IS WHAT MAKES THIS ROW CLICKABLE.
+         *
+         * ⛔⛔ EVERY AVAILABILITY NOTICE WAS INERT. `notifDestination` sends an
+         * enquiry decision to the READER'S OWN dashboard, and each profile type
+         * has its own path — but the only type in the payload was the
+         * applicant's, which is the wrong side for this notice: the reader here
+         * RECEIVED the ask. With no event to fall back on, the row resolved to
+         * null and tapping it did nothing.
+         *
+         * ⛔ NOT DERIVED FROM `to_profile_id` AT READ TIME. `notifDestination`
+         * is pure — it answers from the row alone, which is what lets every
+         * surface agree about where a notice leads. The record states the
+         * identity; it does not compute one beside it.
+         *
+         * ⚠ `profile` IS THE RECIPIENT here — the profile being enquired about,
+         * not the asker. ⛔ Enquiring is universal (an act receives these too),
+         * so this must never be hard-coded to 'venue'.
+         */
+        data:    { enquiry_id: inserted.id, date_requested: pickerDate, venue_name: profile.name || null, recipient_type: profile.type || null },
       });
     }
     // Only ever reached on a real success — every failure returned above.
