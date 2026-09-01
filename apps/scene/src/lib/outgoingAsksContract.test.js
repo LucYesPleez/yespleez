@@ -30,7 +30,9 @@ import { fileURLToPath } from 'node:url';
 const read = name => readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8');
 const DASH = read('../screens/ArtistDashboard.jsx');
 const PIPE = read('./outgoingPipeline.js');
-const ROW  = read('../components/OutgoingEnquiryRow.jsx');
+/* ⚠ `OutgoingEnquiryRow` WAS ABSORBED into EnquiryCard (2026-09-01) — ONE card
+   for every enquiry, every surface. `ROW` is that card now. */
+const ROW  = read('../components/EnquiryCard.jsx');
 
 test('the shared query asks for the enquiries the profile SENT', () => {
   assert.match(PIPE, /eq\('applicant_profile_id', profileId\)[\s\S]{0,40}eq\('initiated_by', 'applicant'\)/,
@@ -188,9 +190,12 @@ test('no dashboard writes the cancel itself', () => {
  */
 test('every cancel control offers the same statuses', () => {
   const CARD  = read('../components/EnquiryCard.jsx');
-  const ROW   = read('../components/OutgoingEnquiryRow.jsx');
   const SHEET = read('../components/EnquiryDossierSheet.jsx');
-  for (const [name, src] of [['EnquiryCard', CARD], ['OutgoingEnquiryRow', ROW], ['EnquiryDossierSheet', SHEET]]) {
+  /* ⭐ TWO SUBJECTS NOW, NOT THREE — the row and the card ARE one component,
+     which is the strongest form this invariant has ever had: the dense and
+     rich densities cannot disagree about which statuses may be cancelled,
+     because they read the same `cancelBtn`. */
+  for (const [name, src] of [['EnquiryCard', CARD], ['EnquiryDossierSheet', SHEET]]) {
     assert.match(src, /'accepted'/, `${name} must offer cancel on an accepted ask`);
   }
   /* ⛔ The sheet had NO gate at all and offered cancel on settled rows. */

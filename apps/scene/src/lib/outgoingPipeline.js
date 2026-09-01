@@ -58,11 +58,22 @@ export { DECLINE_FADE_DAYS, isFadedDecline } from './enquiryUtils';
  * applied to anything yet" told someone who had just enquired with a venue that
  * they had done nothing.
  */
+/**
+ * ⛔⛔ KEYED BY THE SUB-TAB NAMES, AND THEY ARE `normaliseStatus`'s.
+ *
+ * ⚠⚠ THIS WAS DEAD AND NOTHING SAID SO. The keys were `applicantLabel`'s old
+ * vocabulary (SUBMITTED / BEING CONSIDERED / BOOKED / NOT SELECTED) while the
+ * lookup is `OUT_EMPTY[outStatusTab]`, and `outStatusTab` holds AWAITING /
+ * INTERESTED / ACCEPTED / DECLINED. Every key missed, so every empty tab fell
+ * through to the generic fallback and none of this copy had been seen since the
+ * sub-tabs were unified on 2026-08-14. A stale key does not throw; it just
+ * quietly stops being the answer.
+ */
 export const OUT_EMPTY = {
-  'SUBMITTED':        "You haven't applied or enquired anywhere yet.",
-  'BEING CONSIDERED': 'Nothing being considered right now.',
-  'BOOKED':           'Nothing booked yet.',
-  'NOT SELECTED':     'Nothing here yet.',
+  'AWAITING':   "You haven't applied or enquired anywhere yet.",
+  'INTERESTED': 'Nothing being considered right now.',
+  'ACCEPTED':   'Nothing accepted yet.',
+  'DECLINED':   'Nothing here yet.',
 };
 
 /**

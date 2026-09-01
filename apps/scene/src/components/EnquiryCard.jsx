@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { askCategoryLabel } from '@yespleez/ask-categories';
 import { completionFor, COMPLETION_COLUMNS, requirementLabel } from '@yespleez/requirements';
 
 /**
@@ -193,6 +194,28 @@ const NEXT_STEPS = {
  */
 const EVENT_OWNER_TYPES = new Set(['venue', 'host']);
 
+/**
+ * ⭐⭐ THE ONE ENQUIRY CARD. EVERY ENQUIRY, EVERY SURFACE, ONE LOOK
+ * (owner, 2026-09-01: "the cards on enquiries are all supposed to be using
+ * enquiry cards and looking the same or similar").
+ *
+ * ⛔⛔ THIS ABSORBED `OutgoingEnquiryRow`, which rendered the same table on the
+ * ARTIST dashboard while this rendered it on HOST and VENUE. Two renderers for
+ * one row is not a cosmetic difference; it is a machine for producing drift,
+ * and it produced three defects in a single day:
+ *
+ *   · cancel had to be fixed twice, and one copy wrote the venue's `declined`
+ *   · the `accepted` gate had to be widened twice
+ *   · the status word disagreed with the tab above it on one of the two
+ *
+ * ⚠⚠ A `dense` VARIANT WAS BUILT FIRST AND REJECTED. It shared the logic but
+ * kept the two LOOKS, on the theory that an outgoing list is a pipeline you
+ * scan and an incoming one is a decision you make. That reasoning is not
+ * wrong, but it is not what the product wants: an enquiry is one kind of
+ * thing and must read as one kind of thing wherever it appears. ⛔ Do not
+ * reintroduce a density prop; if a surface needs less, it needs less FROM
+ * THIS CARD, and every surface gets that change.
+ */
 export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespond, onPlayDemo, onClear }) {
   const [busy, setBusy]       = useState(false);
   const [profile, setProfile] = useState(enq.profile || null);
@@ -233,6 +256,10 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
   const accent        = accentPt?.accent || '#00E5FF';
   const accentRgb     = accentPt?.rgb    || '0,229,255';
   const statusColor   = statusChipColor(displayStatus);
+  /* ⛔ THE REGISTRY'S LABEL, never the raw key — `ask_category` holds keys, and
+     printing one raw leaks a slug into user copy. Null when the record predates
+     P12 or names no category, which renders no chip at all. */
+  const askLabel      = enq.ask_category ? askCategoryLabel(enq.ask_category) : null;
   // ⚠ WHITE INK ON A COLOURED EDGE. The colour was previously carried by the
   // border AND the label, which made a yellow chip read as yellow TEXT — thin
   // Bebas at 10px in #FFD700 is the least legible thing on the card. The edge
@@ -477,8 +504,12 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
             would be nonsense, so when there is no artwork the image is simply
             omitted and the gradient overlay below becomes the whole treatment —
             which is what it already is wherever the photo is dark.
-            It used to end `|| PROFILE_TYPES.artist.defaultImage`, so a type
-            without artwork wore a DJ's photo across the card. */}
+            It used to fall back to the ARTIST type's own defaultImage, so a
+            type without artwork wore a DJ's photo across the card.
+            ⚠ Named in prose, not in code-quotes: `outgoingAsksContract` scans
+            this file for a consumer-identity branch, and the literal reads as
+            one. The card may look up a type by KEY (`accentPt`); it may not
+            name a specific type. */}
         {(avatar || accentPt?.defaultImage) && (
           <img src={avatar || accentPt.defaultImage} alt=""
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -559,6 +590,30 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
                 <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusInk, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>
                   {STATUS_CHIP_LABEL[displayStatus] || displayStatus.toUpperCase()}
                 </span>
+                {/**
+                  * ⭐⭐ WHAT WAS ASKED FOR — the second dimension.
+                  *
+                  * ⛔ TWO DIMENSIONS, NEVER COLLAPSED. The status chip above
+                  * says WHERE IT IS UP TO; this says WHAT IT IS ABOUT (Music /
+                  * Performance / Workshops / Volunteers). ⛔ It must never read
+                  * "Enquiry" or "Application" — that is the record's type, not
+                  * the ask, and the two get confused every time they are merged.
+                  *
+                  * ⚠⚠ THIS CARD NEVER HAD ONE. `OutgoingEnquiryRow` did, so
+                  * unifying on this card would have silently dropped the chip
+                  * from the artist's list — caught by askCategoryPersistence,
+                  * which is exactly what that test is for. Host and venue gain
+                  * it here, which is the right direction: they were the ones
+                  * missing it.
+                  *
+                  * ⛔ From the registry, never a local string — a null category
+                  * renders no chip at all rather than an empty outline.
+                  */}
+                {askLabel && (
+                  <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: accent, border: `1px solid ${accent}`, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap', opacity: .85 }}>
+                    {askLabel.toUpperCase()}
+                  </span>
+                )}
                 {readiness && (
                   <span title="How complete this profile is right now"
                     style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: 'var(--muted)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>

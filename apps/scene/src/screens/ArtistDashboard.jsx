@@ -21,7 +21,9 @@ import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/Following
 import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
-import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
+/* ⛔ `OutgoingEnquiryRow` IS GONE — absorbed into EnquiryCard's `dense` mode
+   2026-09-01. ⛔ Do not reintroduce a second renderer for this table. */
+import EnquiryCard from '../components/EnquiryCard';
 /* ⚠ `APP_TAB_COLOR` / `applicantLabel` DROPPED 2026-09-01 — the row badges were
    their last runtime caller and now read the canonical bucket instead. Both stay
    exported from the pipeline; see the note at the badge. */
@@ -378,6 +380,19 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
    * ⚠ TAKES THE ROW, not an id: the notice needs the venue's delivery identity
    * and the status it is cancelling, and neither survives an id.
    */
+  /**
+   * ⭐ THE CARD SPEAKS ONE LANGUAGE: `onRespond(id, status)`. This screen's one
+   * legal answer on a row it SENT is withdrawing it — the venue owns every
+   * other verdict — so anything else is refused here rather than being wired to
+   * a write that RLS would silently drop. Mirrors HostDashboard's leg exactly.
+   */
+  async function handleEnquiryRespond(id, status) {
+    if (status !== 'cancelled') return;
+    const row = outgoingEnquiries.find(e => e.id === id);
+    if (!row) return;
+    await handleCancelEnquiry(row);
+  }
+
   async function handleCancelEnquiry(enq) {
     if (!profile?.id) return;
     const { error } = await cancelEnquiry(enq, profile.id, profile.name);
@@ -810,10 +825,45 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
                       const badge = bucket.toUpperCase();
                       const badgeColor = STATUS_TAB_COLOR[badge] || '#FFD700';
                       if (kind === 'enquiry') {
-                        return <OutgoingEnquiryRow key={`enq-${row.id}`} enq={row}
-                          badge={badge} badgeColor={badgeColor} accent={cfg.accent}
-                          onCancel={handleCancelEnquiry}
-                          onClear={handleClearEnquiries} />;
+                        /**
+                         * ⭐⭐ THE SAME CARD THE HOST AND VENUE USE, unmodified.
+                         * It replaced `OutgoingEnquiryRow`, which rendered this
+                         * same table with a second copy of every rule — and
+                         * every rule had drifted. An enquiry is one kind of
+                         * thing and reads as one kind of thing everywhere.
+                         *
+                         * ⛔ `profile`/`name` ARE THE VENUE, not the asker. On
+                         * an outgoing row the card names WHO YOU ASKED; handing
+                         * it the applicant would make it name you back at
+                         * yourself. HostDashboard's `mappedOutgoing` maps it the
+                         * same way, which is why this shape is not new.
+                         *
+                         * ⛔ `direction: 'outgoing'` is DERIVED, never stored —
+                         * without it the card reads the row as incoming and
+                         * offers a venue's decisions to the person who asked.
+                         */
+                        const enq = {
+                          ...row,
+                          direction: 'outgoing',
+                          profile: row.venue || null,
+                          applicant_type: row.venue?.type || 'venue',
+                          name: row.venue?.name || '',
+                        };
+                        /* ⛔⛔ THE VIEWER'S ACCOUNT ID IS NOT PASSED, AND THAT
+                           IS A RULE, NOT AN OVERSIGHT. It is what EnquiryCard's
+                           ADD TO EVENT path reads, and only a venue or host may
+                           ever be offered that — an accepted enquiry does not
+                           transfer event ownership to a performer. Dense never
+                           renders that branch, but handing the id over at all
+                           is the shape the rule forbids.
+                           ⚠ `roleOwnershipEvents` pins this by searching this
+                           file for the prop NAME, so do not write it here even
+                           in a comment: the capability must be absent, not
+                           merely unused. */
+                        return <EnquiryCard key={`enq-${row.id}`} enq={enq}
+                          viewerProfile={profile}
+                          onRespond={handleEnquiryRespond}
+                          onClear={e => handleClearEnquiries(e.id)} />;
                       }
                       /* ⚠ An application whose event did not load renders
                          nothing, as before — an EventCard with no event is the

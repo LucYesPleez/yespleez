@@ -23,7 +23,12 @@ const DASH    = read('../screens/ArtistDashboard.jsx');
 // of ArtistDashboard when HostDashboard grew the same list. Same assertions,
 // new home — and they now cover both dashboards at once.
 const PIPE    = read('./outgoingPipeline.js');
-const ROW     = read('../components/OutgoingEnquiryRow.jsx');
+/* ⚠ `OutgoingEnquiryRow` WAS ABSORBED into EnquiryCard (2026-09-01) — one card
+   for every enquiry on every surface. The chip invariants below are unchanged;
+   their subject is simply the one card now. ⭐ And they earned their keep in the
+   merge: EnquiryCard had NO ask-category chip, so these two tests are what
+   stopped the artist list silently losing it. */
+const ROW     = read('../components/EnquiryCard.jsx');
 const INVITE  = read('../components/InviteSheet.jsx');
 const P12     = sqlOf('../../../../supabase/migrations/20260810000006_p12_ask_category.sql');
 
