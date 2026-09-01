@@ -206,9 +206,20 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
    * says the cog is the only way to settings from there; this makes the menu
    * the second way to the SAME place rather than a rival one.
    */
-  const settingsItems = [
-    { label: 'Notification settings', onClick: () => go('/notifications', { openPrefs: true }) },
-  ];
+  /**
+   * ⚠⚠ EMPTY SINCE 2026-09-01, AND THE ROW HIDES ITSELF WHILE IT IS.
+   *
+   * Its one entry was "Notification settings", which is now the top-level item
+   * — the menu would otherwise print those two words twice, once at the top and
+   * once inside a drawer, both going to the same screen. That is the same
+   * duplication the owner asked to remove, moved down a level.
+   *
+   * ⛔ THE DRAWER IS NOT DELETED, because the reason for it still holds (owner,
+   * 2026-08-14: Settings is a drawer and it edits nothing; a page with one link
+   * on it is a worse version of this). ⭐ Add light/dark, theme colour or
+   * anything else to this array and the row comes back on its own.
+   */
+  const settingsItems = [];
 
   const learnItems = [
     { label: 'TAKE THE TOUR', onClick: () => { setOpen(false); startTour(); } },
@@ -273,13 +284,30 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
       expanded: findOpen,
     },
     {
-      label: 'Notifications',
-      // ⚠ Opens the SAME panel the bell opened, rather than routing to
-      // /notifications. The brief removed the bell, not the panel behind it —
-      // sending people somewhere new here would be losing functionality under
-      // cover of a redesign.
-      onClick: () => { setOpen(false); onOpenNotifications?.(); },
-      badge: unreadCount,
+      /**
+       * ⭐⭐ THIS GOES TO THE SETTINGS, ⛔ NOT TO THE NOTIFICATIONS (owner,
+       * 2026-09-01: "if you want to see notifications you can click the bell so
+       * its a pointless extra move for no gain").
+       *
+       * ⚠⚠ IT USED TO OPEN THE PANEL, AND THAT WAS RIGHT AT THE TIME. Its old
+       * note read "the brief removed the bell, not the panel behind it" — true
+       * when there was no bell. A 44px bell has since been added beside the
+       * avatar (see bellBtn below) and nobody came back here, so two controls a
+       * centimetre apart called the SAME handler and the menu charged an extra
+       * tap to reach it.
+       *
+       * ⭐ The menu now does the thing the bell cannot: it opens the SETTINGS.
+       * The bell shows notifications and keeps its own MANAGE button; this is
+       * the shortcut for someone who came to change something rather than to
+       * read something.
+       *
+       * ⛔ NO BADGE. It carried `unreadCount`, which was honest while it opened
+       * the notifications and is a lie on a settings link — a count beside
+       * "Notification settings" promises unread items behind it. The bell
+       * carries the only count, which is where a reader looks anyway.
+       */
+      label: 'Notification settings',
+      onClick: () => go('/notifications', { openPrefs: true }),
     },
     /**
      * ⭐ SETTINGS IS A DRAWER, AND IT EDITS NOTHING (owner, 2026-08-14).
@@ -301,11 +329,14 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
      * version of this drawer, and it would need its own back-navigation to say
      * what the ‹ in Find People already says.
      */
-    {
+    /* ⛔ HIDDEN WHILE IT HAS NOTHING IN IT. A drawer that opens onto an empty
+       space reads as a broken control, which is worse than one absent row. See
+       `settingsItems` for why it is currently empty and how it returns. */
+    ...(settingsItems.length ? [{
       label: 'Settings',
       onClick: () => setSettingsOpen(v => !v),
       expanded: settingsOpen,
-    },
+    }] : []),
     { label: 'Privacy Centre', onClick: () => go('/messages') },
     // ⚠ OPENS THE INFO SHEET, not /beta-feedback. The header's ⓘ button was
     // removed in the same pass, and that sheet is the only place the app
