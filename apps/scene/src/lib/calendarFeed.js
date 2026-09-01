@@ -44,13 +44,32 @@ import {
  * soundcheck/load-in times and application deadlines have NO canonical data
  * yet, so they are ⛔ not listed rather than listed and empty.
  *
- * `group` is the heading the screen renders the toggle under.
+ * ⚠ `label` IS SET IN CAPS AS DATA because it is a Bebas Neue heading in the
+ * settings idiom, exactly like the notification categories it sits beside.
+ * `desc` is the DM Sans line under it — one sentence saying what lands in
+ * the calendar, ⛔ never what it stops.
  */
 export const CALENDAR_CATEGORIES = [
-  { key: 'sets',      group: 'BOOKINGS',  label: 'Set times' },
-  { key: 'bookings',  group: 'BOOKINGS',  label: 'Confirmed bookings' },
-  { key: 'attending', group: 'EVENTS',    label: 'Events I am attending' },
-  { key: 'deadlines', group: 'DEADLINES', label: 'Enquiry response deadlines' },
+  {
+    key: 'sets',
+    label: 'SET TIMES',
+    desc: 'Your own set times, with the stage and the running order behind them.',
+  },
+  {
+    key: 'bookings',
+    label: 'CONFIRMED BOOKINGS',
+    desc: 'Nights you are booked for, and events you are on the bill at.',
+  },
+  {
+    key: 'attending',
+    label: 'EVENTS I AM GOING TO',
+    desc: 'Events you have saved.',
+  },
+  {
+    key: 'deadlines',
+    label: 'RESPONSE DEADLINES',
+    desc: 'Enquiries waiting on your answer, on the day they are due.',
+  },
 ];
 
 /** Absent means ON — the house convention (absence-means-default). */
