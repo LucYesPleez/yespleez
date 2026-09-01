@@ -271,9 +271,33 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
      * unconditionally. `_live_` appeared on cards reading PLAYED and UPCOMING
      * in the same list.
      */
-    const liveEl = box?.querySelector(`.${s.playing}`);
-    // ⚠ Nothing on stage (before doors, between days, or the data is still
-    // resolving) — leave the peek at the top and try again on the next tick.
+    /**
+     * ⭐⭐ NOTHING PLAYING FALLS BACK TO THE FIRST ACT, ⛔ never to the top of
+     * the grid (owner, 2026-09-01: "its still on an empty set time").
+     *
+     * ⛔⛔ LEAVING IT AT THE TOP IS NOT NEUTRAL — it is the blank. The grid
+     * starts at the earliest slot ACROSS ALL STAGES, so a stage that opens
+     * later begins with empty rows: Neverland's Saturday runs workshops from
+     * 10am and the live stage from 2pm, which is four hours — sixteen rows at a
+     * 15-minute interval — of nothing above the first band. The peek opened
+     * there and read as "no set times" on a day with twenty-one of them.
+     *
+     * ⚠ IT ONLY BIT ON A FINISHED OR NOT-YET-STARTED EVENT, which is why it
+     * survived: while something is on stage there IS a `.playing` card and this
+     * never ran. Every past festival opened on a wall of empty grid.
+     *
+     * ⚠ THE FIRST CARD IN THE DOM IS THE ACTIVE STAGE'S. Cells are emitted
+     * stage by stage, so `querySelector` returns the first act of the column
+     * the reader is parked on rather than the earliest act of the day on some
+     * other stage.
+     *
+     * ⛔ STILL ONCE. `centred` guards this the same way; a reader who scrolls
+     * away is not dragged back.
+     */
+    const playingEl = box?.querySelector(`.${s.playing}`);
+    const liveEl = playingEl || box?.querySelector(`.${es.stagePageCell}`);
+    // ⚠ No cards at all — the day is genuinely empty, or the data is still
+    // resolving. Leave the peek alone and try again on the next tick.
     if (!box || !liveEl) return;
     /**
      * ⛔⛔ MEASURED FROM RECTS, ⛔ NEVER `offsetTop` — AND THIS IS THE SECOND
@@ -293,12 +317,22 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
       - box.getBoundingClientRect().top
       + box.scrollTop;
 
-    box.scrollTop = peekScrollTop(
-      top,
-      liveEl.getBoundingClientRect().height,
-      box.clientHeight,
-      PEEK_FADE_PX,
-    );
+    /**
+     * ⭐ CENTRING ANSWERS "WHERE IS THE NIGHT UP TO", which is only a question
+     * while a night is running. ⛔ Centring the FIRST act instead puts half a
+     * box of empty grid above it — a smaller version of the blank this fixes.
+     * A finished or unstarted programme simply starts at its first act.
+     */
+    box.scrollTop = playingEl
+      ? peekScrollTop(
+        top,
+        liveEl.getBoundingClientRect().height,
+        box.clientHeight,
+        PEEK_FADE_PX,
+      )
+      /* ⚠ A few pixels of air so the card does not sit flush against the top
+         edge and read as clipped. */
+      : Math.max(0, top - 8);
     centred.current = true;
   }, [open, now, peekDays.length]);
   const [stage, setStage] = useState({ index: 0, from: null });
