@@ -21,5 +21,20 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  // The build config and the one-off scripts run in NODE, not the browser, so
+  // `process` and `Buffer` are real there. Scoped to those paths on purpose:
+  // declaring node globals app-wide would let `process.env` into browser code
+  // and the gate would wave it through — the opposite of what this gate is for.
+  //
+  // ⛔ The alternative was dropping `--deny no-undef`, which is how the rule sat
+  // unused while five real undefined symbols shipped: three in the lineup
+  // screen and three in the contact-sync privacy explainer, each of which threw
+  // the moment its code ran.
+  "overrides": [
+    {
+      "files": ["vite.config.js", "scripts/**"],
+      "env": { "node": true }
+    }
+  ]
 }
