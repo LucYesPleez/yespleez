@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint",
+    "lint": "oxlint --deny no-undef",
     "test": "node --experimental-test-module-mocks --import ./test/resolve-hook.mjs --test \"src/**/*.test.js\"",
     "preview": "vite preview"
   },

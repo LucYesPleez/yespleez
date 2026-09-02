@@ -8,6 +8,7 @@ import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismiss
 import { conversationNotificationTypes } from '../lib/conversationNotifications';
 import { findOrphanedOffers } from '../lib/orphanedOffers';
 import useSeenNotifications from '../hooks/useSeenNotifications';
+import InviteTerms from './InviteTerms';
 
 export default function NotifPanel({ onClose }) {
   const navigate = useNavigate();
@@ -416,6 +417,17 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, onOpen, isLast, rootRef,
         {/* ⛔ THE EVENT NAME USED TO REPEAT HERE — it moved up beside the
             heading. Do not restore this block. */}
 
+        {/**
+          * ⭐⭐ THE TERMS, BECAUSE THIS ROW ASKS YOU TO DECIDE.
+          *
+          * ⛔⛔ THE BELL SHOWED "ACCEPT / DECLINE" AND NOTHING ELSE — no date,
+          * no fee, no way to know what the gig even was, while both facts sat
+          * unused in this row's own `data`. NotificationsScreen has rendered
+          * them for some time; this twin never did, which is the drift the
+          * destination module's header warns about. One file, both surfaces.
+          */}
+        {notif.type === 'event_invite' && <InviteTerms data={data} />}
+
         {actionable && notif.type === 'slot_offer' && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
             <button onClick={handleAcceptSlot} disabled={busy} style={actionBtn(meta.col, false)}>{busy ? '…' : '✓ ACCEPT'}</button>
@@ -430,11 +442,42 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, onOpen, isLast, rootRef,
             {answerError}
           </div>
         )}
+        {/**
+          * ⭐⭐ THE BELL NO LONGER ACCEPTS GIGS (owner, 2026-09-01).
+          *
+          * ⛔⛔ ACCEPT AND DECLINE LIVED HERE, ON A ROW THAT COULD NOT SAY WHAT
+          * THE GIG WAS. An invite normally names no event — the venue has not
+          * built the night yet — so even with the date and fee beside it, this
+          * row is a summary, not the offer. Taking a booking on a summary is
+          * how someone commits to a night they have not read, from a dropdown,
+          * in one tap.
+          *
+          * ⭐ The decision moved to where the facts are: the act's own offers,
+          * which is exactly where this row already pointed. Nothing is lost —
+          * `BookingInvitation` there shows the terms, the clash check against
+          * gigs already booked, and the same two buttons.
+          *
+          * ⚠⚠ THE FALLBACK IS NOT OPTIONAL. `event_invite` resolves a
+          * destination from `data.applicant_type`, and older invites were
+          * written without it — those have nowhere to send anyone, and a row
+          * with neither a link nor a control is a dead end worse than the
+          * problem this fixes. They keep the buttons until they age out.
+          * ⛔ Do not delete this branch believing it unreachable; three such
+          * rows existed the day this shipped.
+          */}
         {actionable && notif.type === 'event_invite' && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-            <button onClick={handleAcceptInvite} disabled={busy} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>{busy ? '…' : '✓ ACCEPT'}</button>
-            <button onClick={handleDeclineInvite} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
-          </div>
+          destination ? (
+            <div style={{ display: 'flex', marginTop: 10 }}>
+              <button onClick={handleRowClick} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>
+                VIEW OFFER →
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <button onClick={handleAcceptInvite} disabled={busy} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>{busy ? '…' : '✓ ACCEPT'}</button>
+              <button onClick={handleDeclineInvite} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+            </div>
+          )
         )}
         {/* ⛔ It does NOT say the host withdrew it. A cascade delete and an
             RLS-hidden row look identical from the artist's side, and the

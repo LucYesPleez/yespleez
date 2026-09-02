@@ -21,10 +21,16 @@ import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/Following
 import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
-import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
-import { APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
+/* ⛔ `OutgoingEnquiryRow` IS GONE — absorbed into EnquiryCard's `dense` mode
+   2026-09-01. ⛔ Do not reintroduce a second renderer for this table. */
+import EnquiryCard from '../components/EnquiryCard';
+/* ⚠ `APP_TAB_COLOR` / `applicantLabel` DROPPED 2026-09-01 — the row badges were
+   their last runtime caller and now read the canonical bucket instead. Both stay
+   exported from the pipeline; see the note at the badge. */
+import { OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
+import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
-import { normaliseStatus } from '../lib/enquiryUtils';
+import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -355,21 +361,42 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
    * from the other side, and agreeing with it here means the failure is a
    * no-op rather than an error.
    *
-   * ⚠ `declined` IS THE EXISTING STATUS, not a new `cancelled` one. It is what
-   * EnquiryCard's CANCEL ENQUIRY writes on the venue and host surfaces, what
-   * the OUTGOING sub-tabs already bucket, and what the venue's own list
-   * already reads. A new status would need a home in four places to say the
-   * same thing.
+   * ⚠⚠ THIS BLOCK SAID `declined` AND THE CODE BELOW ALREADY SAID `cancelled`.
+   * The status is `cancelled` — the asker's withdrawal, kept apart from the
+   * venue's verdict (owner, 2026-08-14). Both status maps understand it.
    *
-   * ⛔ NO NOTIFICATION. Cancelling is the asker stepping back, not news the
-   * venue is owed — the same reason declining an offer notifies nobody.
+   * ⚠ NO NOTIFICATION ON AN UNANSWERED ASK. Withdrawing something nobody has
+   * replied to is the asker stepping back and the venue lost nothing.
+   * ⭐ BUT AN ACCEPTED ONE DOES NOTIFY (owner, 2026-09-01) — a venue that
+   * agreed a date has to know the spot is open again in time to refill it.
+   * That split lives in `lib/cancelEnquiry`, not here.
    */
-  async function handleCancelEnquiry(enquiryId) {
+  /**
+   * ⭐ MOVED INTO `lib/cancelEnquiry` (2026-09-01). The write is unchanged; what
+   * it gained is the venue's notice on an ACCEPTED ask, and a second caller —
+   * HostDashboard, whose own cancel wrote nothing at all. Two dashboards
+   * open-coding one decision is how the `declined`/`cancelled` split happened.
+   *
+   * ⚠ TAKES THE ROW, not an id: the notice needs the venue's delivery identity
+   * and the status it is cancelling, and neither survives an id.
+   */
+  /**
+   * ⭐ THE CARD SPEAKS ONE LANGUAGE: `onRespond(id, status)`. This screen's one
+   * legal answer on a row it SENT is withdrawing it — the venue owns every
+   * other verdict — so anything else is refused here rather than being wired to
+   * a write that RLS would silently drop. Mirrors HostDashboard's leg exactly.
+   */
+  async function handleEnquiryRespond(id, status) {
+    if (status !== 'cancelled') return;
+    const row = outgoingEnquiries.find(e => e.id === id);
+    if (!row) return;
+    await handleCancelEnquiry(row);
+  }
+
+  async function handleCancelEnquiry(enq) {
     if (!profile?.id) return;
-    await supabase.from('venue_enquiries')
-      .update({ status: 'cancelled', applicant_cleared_at: new Date().toISOString() })
-      .eq('id', enquiryId)
-      .eq('applicant_profile_id', profile.id);
+    const { error } = await cancelEnquiry(enq, profile.id, profile.name);
+    if (error) return;
     queryClient.invalidateQueries({ queryKey: ['artistDashboard', userId, cfg.profileType] });
   }
 
@@ -764,14 +791,79 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
               : filteredOut.length === 0
                 ? <p className={s.empty}>{OUT_EMPTY[outStatusTab] || 'Nothing here yet.'}</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {filteredOut.map(({ kind, row }) => {
-                      const badge = applicantLabel(row.status);
-                      const badgeColor = APP_TAB_COLOR[badge] || '#FFD700';
+                    {filteredOut.map(({ kind, row, bucket }) => {
+                      /**
+                       * ⭐⭐ THE BADGE IS THE TAB IT SITS IN (owner, 2026-09-01).
+                       *
+                       * ⛔⛔ IT USED TO BE `applicantLabel(row.status)`, AND ALL
+                       * FOUR WORDS DISAGREED WITH THE TAB ABOVE THEM:
+                       *
+                       *   tab        badge said
+                       *   AWAITING   SUBMITTED
+                       *   INTERESTED BEING CONSIDERED
+                       *   ACCEPTED   BOOKED
+                       *   DECLINED   NOT SELECTED
+                       *
+                       * ⚠⚠ THE THIRD ROW IS WHY THIS IS A DEFECT AND NOT A
+                       * STYLE. "BOOKED" ALREADY MEANS SOMETHING ELSE ON THIS
+                       * SCREEN: the top-level BOOKED tab counts real gigs off
+                       * the LINEUP (`dirCounts.BOOKED = upcomingGigs.length`).
+                       * So an accepted enquiry — which holds no slot and
+                       * creates no `lineup_member` — wore a BOOKED sticker
+                       * while being correctly absent from the BOOKED tab. The
+                       * screen asserted a booking and denied it at once.
+                       *
+                       * ⭐ `bucket` is `normaliseStatus`, already computed for
+                       * the tab and the count, so the badge cannot drift from
+                       * the tab again: it IS the tab.
+                       *
+                       * ⛔ `applicantLabel` is now used by nothing at runtime.
+                       * Left exported — it is still the honest answer to "where
+                       * does the ASKER stand", and a future asker-facing
+                       * surface may want it. ⛔ Do not re-point a badge at it.
+                       */
+                      const badge = bucket.toUpperCase();
+                      const badgeColor = STATUS_TAB_COLOR[badge] || '#FFD700';
                       if (kind === 'enquiry') {
-                        return <OutgoingEnquiryRow key={`enq-${row.id}`} enq={row}
-                          badge={badge} badgeColor={badgeColor} accent={cfg.accent}
-                          onCancel={handleCancelEnquiry}
-                          onClear={handleClearEnquiries} />;
+                        /**
+                         * ⭐⭐ THE SAME CARD THE HOST AND VENUE USE, unmodified.
+                         * It replaced `OutgoingEnquiryRow`, which rendered this
+                         * same table with a second copy of every rule — and
+                         * every rule had drifted. An enquiry is one kind of
+                         * thing and reads as one kind of thing everywhere.
+                         *
+                         * ⛔ `profile`/`name` ARE THE VENUE, not the asker. On
+                         * an outgoing row the card names WHO YOU ASKED; handing
+                         * it the applicant would make it name you back at
+                         * yourself. HostDashboard's `mappedOutgoing` maps it the
+                         * same way, which is why this shape is not new.
+                         *
+                         * ⛔ `direction: 'outgoing'` is DERIVED, never stored —
+                         * without it the card reads the row as incoming and
+                         * offers a venue's decisions to the person who asked.
+                         */
+                        const enq = {
+                          ...row,
+                          direction: 'outgoing',
+                          profile: row.venue || null,
+                          applicant_type: row.venue?.type || 'venue',
+                          name: row.venue?.name || '',
+                        };
+                        /* ⛔⛔ THE VIEWER'S ACCOUNT ID IS NOT PASSED, AND THAT
+                           IS A RULE, NOT AN OVERSIGHT. It is what EnquiryCard's
+                           ADD TO EVENT path reads, and only a venue or host may
+                           ever be offered that — an accepted enquiry does not
+                           transfer event ownership to a performer. Dense never
+                           renders that branch, but handing the id over at all
+                           is the shape the rule forbids.
+                           ⚠ `roleOwnershipEvents` pins this by searching this
+                           file for the prop NAME, so do not write it here even
+                           in a comment: the capability must be absent, not
+                           merely unused. */
+                        return <EnquiryCard key={`enq-${row.id}`} enq={enq}
+                          viewerProfile={profile}
+                          onRespond={handleEnquiryRespond}
+                          onClear={e => handleClearEnquiries(e.id)} />;
                       }
                       /* ⚠ An application whose event did not load renders
                          nothing, as before — an EventCard with no event is the

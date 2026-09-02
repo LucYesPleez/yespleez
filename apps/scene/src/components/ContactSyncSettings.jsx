@@ -433,6 +433,40 @@ const rowStyle = {
   display: 'flex', alignItems: 'center', gap: 11, padding: '8px 0',
   borderTop: '1px solid rgba(255,255,255,.06)',
 };
+
+/**
+ * ⛔⛔ THESE THREE WERE USED AND NEVER DECLARED, so the privacy explainer threw
+ * a ReferenceError and NONE OF IT RENDERED — not the "i", not the five
+ * statements about what is sent, not the honest limit at the end.
+ *
+ * ⚠⚠ THAT IS THE WORST POSSIBLE ONE TO LOSE. The whole point of the block is
+ * that the reader is told what we CAN see, which is what makes the claims above
+ * it worth believing — and this is the screen where someone decides whether to
+ * hand over their address book. Asking for contacts while the explanation of
+ * how they are handled silently fails to draw is not a rendering bug.
+ *
+ * ⚠ Built from the vocabulary already in this file (`primerStyle`'s panel,
+ * `noticeStyle`'s inset) rather than a new look, because the block was designed
+ * to sit inside this surface, not to announce itself.
+ */
+const infoDotStyle = {
+  width: 18, height: 18, borderRadius: 999, flexShrink: 0,
+  border: '1px solid var(--border)', background: 'transparent',
+  color: 'var(--muted)', fontFamily: "'DM Sans', sans-serif",
+  fontSize: 11, lineHeight: 1, cursor: 'pointer', padding: 0,
+};
+const explainStyle = {
+  ...primerStyle,
+  marginTop: 10,
+};
+/* ⚠ Quieter than `noticeStyle`, and deliberately NOT red. This is a candid
+   statement, not a warning — dressing it as an alert would make an act of
+   openness read as a problem. */
+const limitStyle = {
+  marginTop: 12, padding: 10, borderRadius: 10,
+  border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.03)',
+  fontSize: 12.5, lineHeight: 1.55, color: 'var(--muted)',
+};
 function switchStyle(on) {
   return {
     width: 44, height: 26, borderRadius: 999, flexShrink: 0, border: 'none',

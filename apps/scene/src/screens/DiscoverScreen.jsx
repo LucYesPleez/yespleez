@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { getRecentSearches, addRecentSearch, clearRecentSearches } from '../lib/recentSearches';
 import EventCard from '../components/EventCard';
 import LocalsRails from '../components/LocalsRails';
 import ProfileCard, { TYPE_STYLES } from '../components/ProfileCard';
@@ -483,6 +484,15 @@ export default function DiscoverScreen() {
   const [postcode, setPostcode] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [searching,     setSearching]     = useState(false);
+  /**
+   * ⭐ THE LAST FIVE THINGS YOU SEARCHED, shown when the box is focused and
+   * empty (owner, 2026-09-01).
+   *
+   * ⚠ READ ONCE INTO STATE, ⛔ not read from storage on every render — this
+   * component re-renders on each keystroke, and `localStorage` is synchronous.
+   */
+  const [recents,       setRecents]       = useState(() => getRecentSearches());
+  const [searchFocused, setSearchFocused] = useState(false);
   const [visibleCount,       setVisibleCount]       = useState(3);
   const [visibleEventsCount, setVisibleEventsCount] = useState(3);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -721,10 +731,64 @@ export default function DiscoverScreen() {
             placeholder="Search DJs, promoters, genres, locations…"
             value={query}
             onChange={e => setQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            /**
+             * ⚠⚠ RECORDED ON THE WAY OUT, ⛔ never on change. The search runs
+             * as you type, so `onChange` would store every prefix on the way to
+             * a word. Leaving the box is the moment a search is finished — and
+             * `addRecentSearch` ignores anything under two characters anyway,
+             * so an abandoned keystroke never lands.
+             *
+             * ⚠ THE DELAY IS NOT COSMETIC. Clicking a suggestion blurs the
+             * input before the click registers; without it the list unmounts
+             * under the pointer and the tap hits nothing. `onMouseDown` on the
+             * rows preventDefaults the blur, and this is the belt to that
+             * braces for keyboard and touch dismissal.
+             */
+            onBlur={() => {
+              setRecents(addRecentSearch(query));
+              setTimeout(() => setSearchFocused(false), 120);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { setRecents(addRecentSearch(query)); setSearchFocused(false); }
+              if (e.key === 'Escape') setSearchFocused(false);
+            }}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
           />
+          {/**
+            * ⭐ ONLY WITH AN EMPTY BOX. Once someone is typing, the results
+            * below ARE the answer — covering them with a history of older
+            * searches would hide the thing they are looking at.
+            *
+            * ⛔ Absent entirely when there is no history, rather than an empty
+            * panel: a box that opens onto nothing reads as broken (R3).
+            */}
+          {searchFocused && !query.trim() && recents.length > 0 && (
+            <div className={s.recentPanel}>
+              <div className={s.recentHead}>
+                <span className={s.recentTitle}>RECENT SEARCHES</span>
+                {/* ⭐ A history with no way out is a thing done TO someone. */}
+                <button type="button" className={s.recentClear}
+                  onMouseDown={e => { e.preventDefault(); setRecents(clearRecentSearches()); }}>
+                  CLEAR
+                </button>
+              </div>
+              {recents.map(term => (
+                /* ⛔ `onMouseDown` + preventDefault, ⛔ NOT onClick: the input's
+                   blur fires first and would tear this list down before a click
+                   could land on it. */
+                <button key={term} type="button" className={s.recentItem}
+                  onMouseDown={e => { e.preventDefault(); setQuery(term); setSearchFocused(false); }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .5, flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+                  </svg>
+                  <span className={s.recentTerm}>{term}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <span className={s.searchIcon}>
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>

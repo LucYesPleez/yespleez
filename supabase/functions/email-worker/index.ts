@@ -76,9 +76,15 @@ type Tpl = {
   subject: (ctx: Ctx) => string;
   preheader: (ctx: Ctx) => string;
   line: (ctx: Ctx) => string;
-  cta: string;
+  /* ⚠ A PLAIN STRING FOR ALMOST EVERY TYPE. The function form exists for the
+     one template whose button depends on what the notice turned out to be about
+     — `booking_cancelled`, which may or may not name an event. Resolve it with
+     `ctaOf()`; ⛔ never read `.cta` directly, it may not be a string. */
+  cta: string | ((ctx: Ctx) => string);
   link: (ctx: Ctx) => string;
 };
+
+const ctaOf = (t: Tpl, ctx: Ctx) => (typeof t.cta === 'function' ? t.cta(ctx) : t.cta);
 
 type Ctx = {
   eventName: string | null;   // looked up server-side, never from the payload
@@ -181,11 +187,28 @@ const TEMPLATES: Record<string, Tpl> = {
     cta: 'View the booking',
     link: c => linkEvent(c.eventId),
   },
+  /**
+   * ⛔⛔ NOT EVERY CANCELLED BOOKING HAS AN EVENT. This type is now also written
+   * when an act withdraws from an accepted DATE ENQUIRY — the ordinary case, a
+   * venue asked for a night that was never built into an event. `ev()` answers
+   * "your event" when the lookup finds nothing, so the event-only copy mailed a
+   * venue about the cancellation of an event that does not exist, and pointed
+   * "View the event" at the notifications list.
+   *
+   * ⚠ THE ACT AND THE DATE ARE DELIBERATELY ABSENT. `Ctx` carries only
+   * server-looked-up values; the notification's payload is attacker-controlled
+   * and never interpolated into mail. The email says a spot opened and sends
+   * them to the enquiry, which names both.
+   */
   booking_cancelled: {
-    subject:   c => `Booking cancelled for ${ev(c)}`,
-    preheader: c => `A booking for ${ev(c)} has been cancelled.`,
-    line:      c => `A booking for <strong>${esc(ev(c))}</strong> has been cancelled.`,
-    cta: 'View the event',
+    subject:   c => c.eventId ? `Booking cancelled for ${ev(c)}` : 'A booking has been cancelled',
+    preheader: c => c.eventId
+      ? `A booking for ${ev(c)} has been cancelled.`
+      : 'An act has pulled out. The spot is open again.',
+    line:      c => c.eventId
+      ? `A booking for <strong>${esc(ev(c))}</strong> has been cancelled.`
+      : 'An act has pulled out of a date you had accepted. The spot is open again — the enquiry has the act and the date.',
+    cta: c => c.eventId ? 'View the event' : 'View the enquiry',
     link: c => linkEvent(c.eventId),
   },
   availability_request: {
@@ -320,7 +343,7 @@ function renderHtml(t: Tpl, ctx: Ctx): string {
   <tr><td style="padding:26px 28px 6px;font-family:Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:2px;color:#8a8a96;">YESPLEEZ</td></tr>
   <tr><td style="padding:0 28px 18px;font-family:Helvetica,Arial,sans-serif;font-size:17px;line-height:1.5;color:#1a1a1f;">${t.line(ctx)}</td></tr>
   <tr><td style="padding:0 28px 26px;">
-    <a href="${esc(link)}" style="display:inline-block;background:#1a1a1f;color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:8px;">${esc(t.cta)}</a>
+    <a href="${esc(link)}" style="display:inline-block;background:#1a1a1f;color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:15px;text-decoration:none;padding:12px 22px;border-radius:8px;">${esc(ctaOf(t, ctx))}</a>
   </td></tr>
   <tr><td style="padding:0 28px 26px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a96;border-top:1px solid #eeeef1;padding-top:18px;">
     You are receiving this because you have a YesPleez account.<br>
@@ -342,7 +365,7 @@ function renderText(t: Tpl, ctx: Ctx): string {
   return [
     line,
     '',
-    `${t.cta}: ${t.link(ctx)}`,
+    `${ctaOf(t, ctx)}: ${t.link(ctx)}`,
     '',
     '...',
     'You are receiving this because you have a YesPleez account.',

@@ -49,6 +49,10 @@ import { PROFILE_TYPES as PROFILE_REGISTRY } from './profileTypes';
  */
 const ENQUIRY_DECISION_TYPES = new Set([
   'booking_confirmed', 'booking_cancelled', 'shortlisted', 'application_declined',
+  /* ⭐ THE ASK ITSELF, arriving at the person being asked — it lands on THEIR
+     enquiries, INCOMING. ⛔ It has no event, so without this it fell to the
+     EVENT_TYPES null below and every availability notice was inert. */
+  'availability_request',
   /* ⭐ AN INVITE OFTEN NAMES NO EVENT — the venue is inviting an act to a night
      it has not built yet, which is the normal case, not an edge one. Sent to
      the act's own OFFERS rather than left inert. */
@@ -61,6 +65,8 @@ const ENQUIRY_TAB = {
   booking_cancelled: 'OUTGOING',
   shortlisted:       'OUTGOING',
   application_declined: 'OUTGOING',
+  /* ⚠ INCOMING — this one arrived, it is not an answer to something sent. */
+  availability_request: 'INCOMING',
   /* ⚠ INCOMING, not OUTGOING: an invite is something the act RECEIVED. */
   event_invite:      'INCOMING',
 };
@@ -135,7 +141,20 @@ export function notifDestination(notif) {
      `data`, and requiring it would leave every invite inert. What both need is
      an act whose dashboard exists, which is the check below. */
   if (ENQUIRY_DECISION_TYPES.has(type) && (data.enquiry_id || type === 'event_invite')) {
-    const dash = PROFILE_REGISTRY[data.applicant_type]?.dashPath;
+    /**
+     * ⛔⛔ WHOSE DASHBOARD DEPENDS ON WHICH SIDE THE READER IS ON.
+     *
+     * Every other type here is an ANSWER travelling back to the person who
+     * asked, so the applicant's type is the reader's. `availability_request`
+     * runs the other way — it is the ASK, arriving at the person being asked —
+     * and using `applicant_type` there would send a venue to the enquirer's
+     * dashboard, which is not theirs to open.
+     *
+     * ⚠ Rows written before `recipient_type` existed have none, and correctly
+     * stay inert rather than guessing a dashboard.
+     */
+    const dashType = type === 'availability_request' ? data.recipient_type : data.applicant_type;
+    const dash = PROFILE_REGISTRY[dashType]?.dashPath;
     if (!dash) return null;
     const tab = ENQUIRY_TAB[type];
     return `${dash}?section=enquiries${tab ? `&tab=${tab}` : ''}`;
