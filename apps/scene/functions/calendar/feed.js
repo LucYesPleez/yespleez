@@ -30,7 +30,28 @@ import { feedCalendar } from '../../src/lib/calendarFeed.js';
 
 const TOKEN_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function onRequestGet({ request, env }) {
+/**
+ * ⚠⚠ HEAD IS EXPORTED TOO, AND ITS ABSENCE WAS A REAL DEFECT. A Pages
+ * Function exporting only `onRequestGet` does not claim HEAD, so a HEAD on
+ * this path fell through to the STATIC handler and answered `200
+ * text/html` — the SPA shell. Every calendar client tested subscribes over
+ * GET, so nothing was broken in practice, but a client that probes with
+ * HEAD first would have been told this address is a web page.
+ *
+ * ⛔ The body is dropped, ⛔ not the headers: HEAD must answer exactly as
+ * GET would, minus the payload. It shares one handler so the two can never
+ * disagree about status, type or scoping.
+ */
+export async function onRequestHead(ctx) {
+  const res = await serve(ctx);
+  return new Response(null, { status: res.status, headers: res.headers });
+}
+
+export async function onRequestGet(ctx) {
+  return serve(ctx);
+}
+
+async function serve({ request, env }) {
   const token = new URL(request.url).searchParams.get('token') || '';
   if (!TOKEN_RE.test(token)) return new Response('Not found', { status: 404 });
 

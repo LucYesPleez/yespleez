@@ -11,7 +11,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { onRequestGet } from '../../functions/calendar/feed.js';
+import { onRequestGet, onRequestHead } from '../../functions/calendar/feed.js';
 
 const TOKEN = '11111111-2222-3333-4444-555555555555';
 const ENV = { VITE_SUPABASE_URL: 'https://example.supabase.co', VITE_SUPABASE_ANON_KEY: 'anon-key' };
@@ -19,7 +19,7 @@ const ENV = { VITE_SUPABASE_URL: 'https://example.supabase.co', VITE_SUPABASE_AN
 const req = token => ({ request: new Request(`https://yespleez.com/calendar/feed${token ? `?token=${token}` : ''}`) });
 
 /** Run the handler with fetch stubbed to answer the RPC with `payload`. */
-async function run(payload, { token = TOKEN, env = ENV, ok = true } = {}) {
+async function run(payload, { token = TOKEN, env = ENV, ok = true, handler = onRequestGet } = {}) {
   const calls = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -27,7 +27,7 @@ async function run(payload, { token = TOKEN, env = ENV, ok = true } = {}) {
     return { ok, json: async () => payload };
   };
   try {
-    const res = await onRequestGet({ ...req(token), env });
+    const res = await handler({ ...req(token), env });
     return { res, calls };
   } finally {
     globalThis.fetch = realFetch;
@@ -68,6 +68,21 @@ test('a disabled feed serves a VALID, EMPTY text/calendar so clients clear items
   const body = await res.text();
   assert.ok(body.startsWith('BEGIN:VCALENDAR\r\n'));
   assert.ok(!body.includes('BEGIN:VEVENT'));
+});
+
+test('⭐ HEAD answers as GET does, with the calendar content type and NO body', async () => {
+  const payload = { found: true, enabled: true, categories: {}, gigs: [], attending: [], bookings: [], deadlines: [] };
+  const { res } = await run(payload, { handler: onRequestHead });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('Content-Type'), /^text\/calendar/,
+    'a HEAD that answers text/html is the SPA shell leaking through — the defect this guards');
+  assert.equal(await res.text(), '', 'HEAD carries no body');
+});
+
+test('⛔ HEAD is scoped exactly like GET — a bad token never reaches the RPC', async () => {
+  const { res, calls } = await run({}, { token: 'nonsense', handler: onRequestHead });
+  assert.equal(res.status, 404);
+  assert.equal(calls.length, 0);
 });
 
 test('an enabled feed serves the user\'s items with stable UIDs', async () => {
