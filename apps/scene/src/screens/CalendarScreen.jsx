@@ -28,7 +28,7 @@
 import { useEffect, useState, Fragment } from 'react';
 import { useSession } from '../App';
 import {
-  QUESTIONS, ABSENT_CATEGORIES, mergeCategories,
+  QUESTIONS, ABSENT_CATEGORIES, mergeCategories, untouchedCategories,
   rolesForAccount, categoriesForRole,
 } from '../lib/calendarFeed';
 import {
@@ -56,12 +56,44 @@ const pageTitle = {
   backgroundClip: 'text', display: 'inline-block',
 };
 
-/** The page's pill button — the same one MANAGE / DONE uses up there. */
+/**
+ * ⭐ THE APP'S GRADIENT EDGE — the cyan→violet border SlotCard's MESSAGE
+ * button wears, painted with the two-layer background trick: a padding-box
+ * fill sitting over a border-box gradient.
+ *
+ * ⛔⛔ THE TRANSPARENT 1.5px BORDER IS REQUIRED. Drop it and the gradient is
+ * hidden underneath the fill and the control silently loses its edge.
+ */
+const gradientEdge = (fill = 'var(--card2)') => ({
+  border: '1.5px solid transparent',
+  background: `linear-gradient(${fill},${fill}) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box`,
+});
+
+/** The page's pill button — gradient edge, white label. */
 const pill = {
-  background: 'none', border: '1px solid var(--border)', borderRadius: 999,
-  color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif", fontSize: 12,
+  ...gradientEdge(),
+  borderRadius: 999,
+  color: '#fff', fontFamily: "'Bebas Neue', sans-serif", fontSize: 12,
   letterSpacing: 1.5, padding: '5px 12px', cursor: 'pointer',
   textDecoration: 'none', display: 'inline-block',
+};
+
+/**
+ * ⭐ THE APP'S GRADIENT TEXT — same ramp as the edge, clipped to the glyphs.
+ * ⚠ Both `WebkitTextFillColor` and the standard `backgroundClip` are needed;
+ * without the fill override the text paints solid over the gradient.
+ */
+const gradientText = {
+  /* ⛔⛔ `inline-block` IS LOAD BEARING, ⛔ not tidiness. The gradient is
+     painted across the ELEMENT's box and then clipped to the glyphs — so on a
+     full-width block the ramp spans the whole row, the word sits in the first
+     few percent of it, and a short label like HOST samples only the cyan end
+     and reads as flat cyan. Shrinking the box to the text puts the whole
+     cyan→violet ramp across the word itself. */
+  display: 'inline-block',
+  background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)',
+  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
 };
 
 /** The settings switch, from the shared stylesheet. */
@@ -118,6 +150,10 @@ export default function CalendarScreen() {
   const cats = mergeCategories(row?.categories);
   /* ⭐ The roles this account actually holds, from its PROFILES — ⛔ never
      guessed from having been booked somewhere. */
+  /* ⚠ Categories the reader has never answered for. A NEW category sits OFF
+     until it is asked for, and the row says so — otherwise an untouched
+     switch looks like a setting somebody chose and turned off. */
+  const untouched = new Set(untouchedCategories(row?.categories));
   const roles = rolesForAccount(profileTypes);
   const shownRoles = role === ALL_ROLE ? roles : roles.filter(r => r.key === role);
   /* ⚠ Honest about what a role does NOT carry. Per the data rule an
@@ -252,12 +288,14 @@ export default function CalendarScreen() {
                           type="button"
                           aria-pressed={on}
                           onClick={() => setRole(r.key)}
-                          style={{
-                            ...pill,
-                            color: on ? 'var(--neon2)' : 'var(--muted)',
-                            borderColor: on ? 'var(--neon2)' : 'var(--border)',
-                            background: on ? 'rgba(0,229,255,.14)' : 'none',
-                          }}
+                          /* ⚠ SELECTION IS THE FILL, ⛔ no longer the colour.
+                             Every chip keeps the gradient edge and white
+                             label, so the selected one is told apart by the
+                             tinted padding-box behind it. ⛔ Do not switch
+                             the text to cyan for the selected state — that
+                             was the old signal and it makes one chip read as
+                             a different kind of control. */
+                          style={{ ...pill, ...gradientEdge(on ? 'rgba(0,229,255,.20)' : 'var(--card2)') }}
                         >{r.label}</button>
                       );
                     })}
@@ -277,7 +315,7 @@ export default function CalendarScreen() {
                         {role === ALL_ROLE && roles.length > 1 && (
                           <div className={s.row} style={{ paddingBottom: 4 }}>
                             <div className={s.rowText}>
-                              <div className={s.label} style={{ color: 'var(--neon2)' }}>{r.label}</div>
+                              <div className={s.label} style={gradientText}>{r.label}</div>
                             </div>
                           </div>
                         )}
@@ -291,7 +329,18 @@ export default function CalendarScreen() {
                                 {QUESTIONS[c.question]}
                               </div>
                               <div className={s.label}>{c.label}</div>
-                              <div className={s.desc}>{c.desc}</div>
+                              <div className={s.desc}>
+                                {c.desc}
+                                {/* ⚠ A HINT, ⛔ NOT A CALL TO ACTION. At full
+                                    --neon2 this one sentence was the loudest
+                                    thing on a screen of settings, and it
+                                    repeats on every untouched row — eight of
+                                    them at once. Dimmed so it reads as a note
+                                    inside the muted copy it sits in. */}
+                                {!cats[c.key] && untouched.has(c.key) && (
+                                  <span style={{ color: 'rgba(0,229,255,.55)' }}> Not in your calendar yet — turn this on to add it.</span>
+                                )}
+                              </div>
                             </div>
                             <Switch
                               on={cats[c.key]}

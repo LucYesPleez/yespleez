@@ -139,22 +139,15 @@ BEGIN
                 'artist_name', m.artist_name)), '[]'::jsonb)
                 FROM public.lineup_members m
                 WHERE m.event_id = e.id AND m.status = 'on_bill'),
+    -- ⛔⛔ NO `booked` LIST. A host's "what have I committed to" was dropped:
+    -- the acts on a bill are part of the night already carried by the
+    -- hosting event and its running order, ⛔ not a separate appointment.
+    -- ⚠ It also could never have worked — it read `venue_enquiries` joined by
+    -- `event_id`, and NO accepted enquiry in production carries one.
     'performances', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
                 'id', p.id, 'lineup_member_id', p.lineup_member_id, 'slot_uuid', p.slot_uuid,
                 'status', p.status, 'updated_at', p.updated_at)), '[]'::jsonb)
-                FROM public.performances p WHERE p.event_id = e.id),
-    -- ⛔ id, date, times and the venue's public name ONLY. No note, no fee.
-    'booked', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
-                'enquiry', jsonb_build_object('id', v.id, 'status', v.status,
-                                              'date_requested', v.date_requested,
-                                              'proposed_time', v.proposed_time,
-                                              'set_duration', v.set_duration,
-                                              'created_at', v.created_at),
-                'venue', (SELECT jsonb_build_object('name', vp2.name, 'suburb', vp2.suburb, 'state', vp2.state)
-                            FROM public.profiles vp2 WHERE vp2.id = v.venue_profile_id))), '[]'::jsonb)
-                FROM public.venue_enquiries v
-                WHERE v.event_id = e.id
-                  AND lower(COALESCE(v.status, '')) IN ('booked', 'accepted'))
+                FROM public.performances p WHERE p.event_id = e.id)
   )), '[]'::jsonb) INTO hosting
   FROM public.events e WHERE e.id = ANY(host_event_ids);
 

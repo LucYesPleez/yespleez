@@ -77,6 +77,15 @@ test('⭐ HEAD answers as GET does, with the calendar content type and NO body',
   assert.match(res.headers.get('Content-Type'), /^text\/calendar/,
     'a HEAD that answers text/html is the SPA shell leaking through — the defect this guards');
   assert.equal(await res.text(), '', 'HEAD carries no body');
+
+  /* EVERY header, not just the type: a subscribing client decides how to
+     cache and whether to display from these, so HEAD promising something
+     GET does not deliver is its own defect. */
+  const { res: get } = await run(payload, { handler: onRequestGet });
+  for (const h of ['Content-Type', 'Content-Disposition', 'Cache-Control']) {
+    assert.equal(res.headers.get(h), get.headers.get(h), `${h} differs between HEAD and GET`);
+  }
+  assert.equal(res.headers.get('Cache-Control'), 'private, max-age=300');
 });
 
 test('⛔ HEAD is scoped exactly like GET — a bad token never reaches the RPC', async () => {

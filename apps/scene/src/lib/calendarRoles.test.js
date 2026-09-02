@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PHASE 2A — THE ROLE-AWARE CALENDAR.
  *
  * ⭐⭐ THE LAWS UNDER TEST:
@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import {
   feedEvents, feedCalendar, mergeCategories, rolesForAccount,
   categoriesForRole, CALENDAR_CATEGORIES, CALENDAR_ROLES, QUESTIONS,
+  ABSENT_CATEGORIES,
 } from './calendarFeed.js';
 import { icsUid } from './calendarEvent.js';
 
@@ -24,7 +25,7 @@ const slotRow = (id, position, time, ampm, dur = 60) =>
   ({ id, event_id: 'ev-1', day_index: 0, day_name: '', position, time, ampm, dur_mins: dur, stage_id: null });
 
 /** The gig/hosting/venue payload shape the RPC returns. */
-function eventBundle({ id = 'ev-1', name = 'Solstice', date = '2026-08-29', members = [], performances = [], slots = null, booked = null, cfg = {} } = {}) {
+function eventBundle({ id = 'ev-1', name = 'Solstice', date = '2026-08-29', members = [], performances = [], slots = null, cfg = {} } = {}) {
   return {
     event: { id, name, config: { date, ...cfg }, updated_at: '2026-08-20T10:00:00Z' },
     venue: { id: 'vp-1', name: 'The Hall', location: '1 Main St', suburb: 'Bellingen', state: 'NSW' },
@@ -32,7 +33,6 @@ function eventBundle({ id = 'ev-1', name = 'Solstice', date = '2026-08-29', memb
     stages: [],
     members,
     performances,
-    ...(booked ? { booked } : {}),
   };
 }
 
@@ -40,8 +40,18 @@ const ME = { id: 'm-1', artist_id: 'u-1', artist_profile_id: 'p-artist', artist_
 const OTHER = { id: 'm-2', artist_id: 'u-9', artist_profile_id: 'p-other', artist_name: 'Someone Else' };
 const accepted = (memberId, slot) => ({ id: `perf-${memberId}`, lineup_member_id: memberId, slot_uuid: slot, status: 'accepted' });
 
+/**
+ * ⭐⭐ EVERY CATEGORY EXPLICITLY ON.
+ *
+ * ⛔ 2A categories default OFF (see the F1 compatibility rule), so a test
+ * about PROJECTION must opt in rather than rely on a default. Stating it here
+ * keeps the projection tests honest and leaves the DEFAULT tests below to
+ * assert the defaults on their own.
+ */
+const ALL_ON = Object.fromEntries(CALENDAR_CATEGORIES.map(c => [c.key, true]));
+
 const base = (over = {}) => ({
-  found: true, enabled: true, categories: {},
+  found: true, enabled: true, categories: { ...ALL_ON },
   profile_types: ['punter', 'artist', 'host', 'venue'],
   gigs: [], attending: [], bookings: [], deadlines: [],
   diary: [], hosting: [], venue_events: [], venue_bookings: [],
@@ -83,7 +93,7 @@ test('every category belongs to a declared role and answers one of the four ques
 test('PUNTER · saved events are whole-day, and become timed only when doors are on', () => {
   const p = base({ attending: [eventBundle({ id: 'ev-9', name: 'Open Mic', cfg: { time: '7:30', ampm: 'PM' } })] });
 
-  const allDay = feedEvents({ ...p, categories: { punter_doors: false } })
+  const allDay = feedEvents({ ...p, categories: { ...ALL_ON, punter_doors: false } })
     .find(e => e.uid === icsUid('event', 'ev-9'));
   assert.equal(allDay.allDay, true);
   assert.equal(allDay.dtstart, '20260829');
@@ -99,7 +109,7 @@ test('⛔ PUNTER never gets an invented act time — only the organiser\'s own s
      doors on, and ⛔ does not borrow the first set time from the schedule. */
   const p = base({
     attending: [eventBundle({ id: 'ev-9', slots: [slotRow('s', 0, '9:00', 'PM')], cfg: {} })],
-    categories: { punter_doors: true },
+    categories: { ...ALL_ON, punter_doors: true },
   });
   const ev = feedEvents(p).find(e => e.uid === icsUid('event', 'ev-9'));
   assert.equal(ev.allDay, true);
@@ -118,12 +128,11 @@ test('ARTIST · playing, set times, bookings and deadlines each project', () => 
   assert.ok(evs.some(e => e.uid === icsUid('deadline', 6)), 'waiting on me');
 });
 
-test('HOST · events I host, their running order, and acts I booked', () => {
+test('HOST · events I host and their running order — and NOTHING else', () => {
   const p = base({
     hosting: [eventBundle({
       id: 'ev-h', name: 'My Night',
       members: [OTHER], performances: [accepted('m-2', 'slot-a')],
-      booked: [{ enquiry: { id: 77, status: 'accepted', date_requested: '2026-08-29' }, venue: { name: 'The Hall' } }],
     })],
   });
   const evs = feedEvents(p);
@@ -134,7 +143,18 @@ test('HOST · events I host, their running order, and acts I booked', () => {
   const slot = evs.find(e => e.uid === icsUid('slot', 'slot-a'));
   assert.ok(slot, "when I'm needed");
   assert.match(slot.summary, /Someone Else/);
-  assert.ok(evs.some(e => e.uid === icsUid('booking', 77)), 'committed');
+  /* ⛔⛔ TWO ITEMS, ⛔ NOT THREE. A host has no "committed" category: the acts
+     on the bill are part of the night above, ⛔ not an appointment of their
+     own. Even with everything switched on, hosting yields the event and its
+     set times and stops. */
+  assert.equal(evs.length, 2, 'a hosted night is the event plus its running order');
+});
+
+test('⛔⛔ HOST HAS NO "COMMITTED" CATEGORY, and the screen says why', () => {
+  assert.ok(!CALENDAR_CATEGORIES.some(c => c.role === 'host' && c.question === 'committed'),
+    'ACTS I HAVE BOOKED was removed — a calendar item must place you somewhere, not describe a night already in it');
+  assert.ok(ABSENT_CATEGORIES.some(a => a.role === 'host' && a.question === 'committed'),
+    'and its absence is declared so the reader is told rather than left guessing');
 });
 
 test('VENUE · events at my venue, my running order, my confirmed bookings', () => {
@@ -193,12 +213,12 @@ test('⭐⭐ TWO ROLES ON ONE ACCOUNT CONFIGURE INDEPENDENTLY', () => {
     venue_events: [eventBundle({ id: 'ev-v', members: [OTHER], performances: [] })],
   });
   /* venue off must not touch artist */
-  const artistOnly = feedEvents({ ...p, categories: { venue_events: false, venue_settimes: false, venue_bookings: false } });
+  const artistOnly = feedEvents({ ...p, categories: { ...ALL_ON, venue_events: false, venue_settimes: false, venue_bookings: false } });
   assert.ok(artistOnly.some(e => e.uid === icsUid('gig', 'ev-a')));
   assert.ok(!artistOnly.some(e => e.uid === icsUid('venue', 'ev-v')));
 
   /* artist off must not touch venue */
-  const venueOnly = feedEvents({ ...p, categories: { artist_playing: false, artist_sets: false } });
+  const venueOnly = feedEvents({ ...p, categories: { ...ALL_ON, artist_playing: false, artist_sets: false } });
   assert.ok(!venueOnly.some(e => e.uid === icsUid('gig', 'ev-a')));
   assert.ok(venueOnly.some(e => e.uid === icsUid('venue', 'ev-v')));
 });
@@ -218,10 +238,79 @@ test('each role toggle removes only its own items', () => {
     ['artist_playing', icsUid('gig', 'ev-a')],
   ]) {
     assert.ok(full.some(e => e.uid === uid), `${uid} present when all on`);
-    const off = feedEvents({ ...p, categories: { [key]: false } });
+    const off = feedEvents({ ...p, categories: { ...ALL_ON, [key]: false } });
     assert.ok(!off.some(e => e.uid === uid), `${key} off removes ${uid}`);
     assert.ok(off.length === full.length - 1, `${key} off removes exactly one item`);
   }
+});
+
+/* ── F1 · a pre-CAL2A subscriber's calendar must not change ────────── */
+
+test('⭐⭐ F1 END TO END · an existing subscriber gains NOTHING from 2A until they opt in', () => {
+  /* Everything 2A can serve is present in the payload, and the account has
+     stored no 2A preference — exactly the state of every live subscriber the
+     moment the migration is applied. */
+  const p = base({
+    categories: {},
+    gigs: [eventBundle({ id: 'ev-a', members: [ME], performances: [accepted('m-1', 'slot-a')] })],
+    attending: [eventBundle({ id: 'ev-s', cfg: { time: '7:30', ampm: 'PM' } })],
+    bookings: [{ enquiry: { id: 5, status: 'accepted', date_requested: '2026-09-12' }, venue: { name: 'Fed' } }],
+    hosting: [eventBundle({ id: 'ev-h', members: [OTHER], performances: [accepted('m-2', 'slot-a')] })],
+    venue_events: [eventBundle({ id: 'ev-v', members: [OTHER], performances: [accepted('m-2', 'slot-a')] })],
+    venue_bookings: [{ enquiry: { id: 88, status: 'booked', date_requested: '2026-09-01' }, venue: { name: 'Hall' } }],
+    diary: [{ id: 'd1', title: 'Rehearsal', event_date: '2026-09-03' }],
+  });
+  const evs = feedEvents(p);
+  const uids = evs.map(e => e.uid);
+
+  /* ⛔ NOTHING NEW */
+  for (const gone of [icsUid('hosting', 'ev-h'), icsUid('venue', 'ev-v'),
+                      icsUid('booking', 88), icsUid('diary', 'd1')]) {
+    assert.ok(!uids.includes(gone), `${gone} must not appear unbidden`);
+  }
+  /* ⛔ AND THE SAVED EVENT KEEPS ITS WHOLE-DAY SHAPE */
+  const saved = evs.find(e => e.uid === icsUid('event', 'ev-s'));
+  assert.equal(saved.allDay, true, 'punter_doors is off, so no silent reshaping');
+  assert.equal(saved.dtstart, '20260829');
+
+  /* ⭐ AND EVERYTHING CAL1 SERVED IS STILL THERE */
+  assert.ok(uids.includes(icsUid('gig', 'ev-a')));
+  assert.ok(uids.includes(icsUid('slot', 'slot-a')));
+  assert.ok(uids.includes(icsUid('booking', 5)));
+});
+
+test('⭐ opting in is what makes a 2A category appear, and only that one', () => {
+  /* ⚠ Starts from NO stored preference — the state of every live subscriber
+     the moment 2A lands. ⛔ Not the all-on fixture. */
+  const p = base({
+    categories: {},
+    hosting: [eventBundle({ id: 'ev-h', members: [OTHER], performances: [] })],
+    venue_events: [eventBundle({ id: 'ev-v', members: [OTHER], performances: [] })],
+    diary: [{ id: 'd1', title: 'Rehearsal', event_date: '2026-09-03' }],
+  });
+  const before = feedEvents(p).map(e => e.uid);
+  assert.ok(!before.includes(icsUid('hosting', 'ev-h')));
+
+  const after = feedEvents({ ...p, categories: { host_events: true } }).map(e => e.uid);
+  assert.ok(after.includes(icsUid('hosting', 'ev-h')), 'the opted-in category appears');
+  assert.ok(!after.includes(icsUid('venue', 'ev-v')), '⛔ and its neighbours stay out');
+  assert.ok(!after.includes(icsUid('diary', 'd1')));
+
+  /* explicitly OFF keeps it absent */
+  const off = feedEvents({ ...p, categories: { host_events: false } }).map(e => e.uid);
+  assert.ok(!off.includes(icsUid('hosting', 'ev-h')));
+});
+
+test('⭐ a CAL1 subscriber who had turned things OFF still has them off', () => {
+  const p = base({
+    categories: { sets: false, bookings: false },
+    gigs: [eventBundle({ id: 'ev-a', members: [ME], performances: [accepted('m-1', 'slot-a')] })],
+    attending: [eventBundle({ id: 'ev-s' })],
+  });
+  const uids = feedEvents(p).map(e => e.uid);
+  assert.ok(!uids.includes(icsUid('slot', 'slot-a')), 'sets:false still suppresses set times');
+  assert.ok(!uids.includes(icsUid('gig', 'ev-a')), 'bookings:false still suppresses the gig');
+  assert.ok(uids.includes(icsUid('event', 'ev-s')), 'and attending is untouched');
 });
 
 /* ── security ──────────────────────────────────────────────────────── */
@@ -231,7 +320,7 @@ test('⛔⛔ no private enquiry field reaches the feed, from EITHER side', () =>
   const p = base({
     bookings: [{ enquiry: { id: 5, status: 'accepted', date_requested: '2026-09-12', ...leak }, venue: { name: 'Fed' } }],
     venue_bookings: [{ enquiry: { id: 88, status: 'booked', date_requested: '2026-09-01', ...leak }, venue: { name: 'The Hall' } }],
-    hosting: [eventBundle({ id: 'ev-h', booked: [{ enquiry: { id: 77, status: 'accepted', date_requested: '2026-08-29', ...leak }, venue: { name: 'The Hall' } }] })],
+    hosting: [eventBundle({ id: 'ev-h' })],
   });
   const ics = feedCalendar(p, { now: NOW });
   assert.ok(!ics.includes('300'), 'no fee anywhere');

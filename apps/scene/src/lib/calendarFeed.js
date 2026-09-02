@@ -72,55 +72,87 @@ export const CALENDAR_ROLES = [
   { key: 'venue',  label: 'VENUE',   profileTypes: ['venue'] },
 ];
 
+/**
+ * ⭐⭐ `defaultOn` IS A COMPATIBILITY FLAG, ⛔ NOT A STYLE CHOICE.
+ *
+ * ⛔⛔ INTRODUCING A CATEGORY MUST NEVER SILENTLY EXPAND A CALENDAR SOMEBODY
+ * HAS ALREADY SUBSCRIBED. A subscribed client replaces its YesPleez items on
+ * every poll, so a category that arrives switched ON pushes new entries into
+ * a real diary without anyone asking. Genuinely NEW categories therefore
+ * default OFF and the reader opts in.
+ *
+ * ⭐⭐ BUT THE FOUR ARTIST KEYS AND `attending` ARE NOT NEW — they are CAL1's
+ * shipped categories under role-scoped names (`sets` → `artist_sets`,
+ * `bookings` → `artist_playing` + `artist_bookings`, `deadlines` →
+ * `artist_deadlines`). ⛔ Defaulting THOSE off would empty the calendar of
+ * every existing subscriber, which is the same defect in the other
+ * direction: silent CONTRACTION rather than silent expansion.
+ *
+ * ⭐ So the rule is per-category LINEAGE, ⛔ never a blanket
+ * "missing key = OFF": a category defaults to whatever its predecessor did,
+ * and a category with no predecessor defaults OFF.
+ */
 export const CALENDAR_CATEGORIES = [
   /* ── COMMON · every account, keyed on the USER, no role required ── */
-  { key: 'attending', role: 'common', question: 'on',
+  { key: 'attending', role: 'common', question: 'on', defaultOn: true,
     label: 'EVENTS I AM GOING TO', desc: 'Events you have saved.' },
-  { key: 'diary', role: 'common', question: 'on',
+  { key: 'diary', role: 'common', question: 'on', defaultOn: false,
     label: 'MY OWN DIARY', desc: 'Your own entries from My Scene.' },
 
   /* ── PUNTER ── */
-  { key: 'punter_doors', role: 'punter', question: 'when',
+  { key: 'punter_doors', role: 'punter', question: 'when', defaultOn: false,
     label: 'DOORS AND START TIMES',
     desc: 'Saved events land at their start time instead of taking the whole day, where the organiser has given one.' },
 
-  /* ── ARTIST ── */
-  { key: 'artist_playing', role: 'artist', question: 'on',
+  /* ── ARTIST · all four are CAL1 categories renamed, so all four stay ON ── */
+  { key: 'artist_playing', role: 'artist', question: 'on', defaultOn: true,
     label: 'EVENTS I AM PLAYING', desc: 'Nights you are on the bill.' },
-  { key: 'artist_sets', role: 'artist', question: 'when',
+  { key: 'artist_sets', role: 'artist', question: 'when', defaultOn: true,
     label: 'MY SET TIMES', desc: 'Your own set times, with the stage and the running order behind them.' },
-  { key: 'artist_bookings', role: 'artist', question: 'committed',
+  { key: 'artist_bookings', role: 'artist', question: 'committed', defaultOn: true,
     label: 'MY CONFIRMED BOOKINGS', desc: 'Nights a venue has booked you for.' },
-  { key: 'artist_deadlines', role: 'artist', question: 'waiting',
+  { key: 'artist_deadlines', role: 'artist', question: 'waiting', defaultOn: true,
     label: 'ENQUIRIES TO ANSWER', desc: 'Enquiries waiting on your answer, on the day they are due.' },
 
-  /* ── HOST ── */
-  { key: 'host_events', role: 'host', question: 'on',
+  /* ── HOST · new in 2A ── */
+  { key: 'host_events', role: 'host', question: 'on', defaultOn: false,
     label: 'EVENTS I AM HOSTING', desc: 'Nights you are running.' },
-  { key: 'host_settimes', role: 'host', question: 'when',
+  { key: 'host_settimes', role: 'host', question: 'when', defaultOn: false,
     label: 'SET TIMES FOR MY EVENTS', desc: 'The running order on the events you host.' },
-  { key: 'host_booked', role: 'host', question: 'committed',
-    label: 'ACTS I HAVE BOOKED', desc: 'The acts confirmed on your bills.' },
 
-  /* ── VENUE ── */
-  { key: 'venue_events', role: 'venue', question: 'on',
+  /* ── VENUE · new in 2A ── */
+  { key: 'venue_events', role: 'venue', question: 'on', defaultOn: false,
     label: 'EVENTS AT MY VENUE', desc: 'Nights on at your room.' },
-  { key: 'venue_settimes', role: 'venue', question: 'when',
+  { key: 'venue_settimes', role: 'venue', question: 'when', defaultOn: false,
     label: 'RUNNING ORDER AT MY ROOM', desc: 'Set times for the nights at your venue.' },
-  { key: 'venue_bookings', role: 'venue', question: 'committed',
+  { key: 'venue_bookings', role: 'venue', question: 'committed', defaultOn: false,
     label: 'BOOKINGS AT MY VENUE', desc: 'Bookings confirmed for your room.' },
 ];
 
 /**
- * ⚠⚠ HOST AND VENUE HAVE NO "WAITING ON ME" ROW, AND THAT IS DELIBERATE.
+ * ⭐⭐ THE TEST A CATEGORY MUST PASS (owner, 2026-09-02):
  *
- * ⛔ Scene's `events.applications_open` is a BOOLEAN with no closing date, so
- * "applications close on…" cannot be stated. ⛔ And `venue_enquiries.respond_by`
- * is set BY the venue FOR the artist, so a venue/host has no answer-by date of
- * its own. Per the data rule an unsupported category is ABSENT, ⛔ never an
- * empty toggle and ⛔ never a fabricated deadline.
+ *     A CALENDAR ITEM PUTS YOU SOMEWHERE AT A TIME, OR DEMANDS AN ANSWER BY
+ *     A DATE. Anything else is a FACT ABOUT something already in the
+ *     calendar, and belongs on the event page or the dashboard.
+ *
+ * ⛔⛔ THIS IS WHAT KILLED "ACTS I HAVE BOOKED". Booking an act creates no new
+ * obligation on a new date: the night is already there as EVENTS I AM
+ * HOSTING, and the acts are already named at real times by SET TIMES FOR MY
+ * EVENTS. Who is on the bill is roster information. ⛔ Do not reintroduce it
+ * pointed at `lineup_members` either — that would be a better-implemented
+ * category that still should not exist.
+ *
+ * ⚠⚠ THE ARTIST AND VENUE BOOKING ROWS LOOK IDENTICAL AND ARE NOT. An
+ * accepted `venue_enquiries` row frequently has NO event record at all, so it
+ * is a night that exists NOWHERE ELSE in the calendar — it passes the test.
+ * The host version failed precisely because it only ever read enquiries
+ * already attached to one of your own events, so by construction it could
+ * only duplicate a night you already had.
  */
 export const ABSENT_CATEGORIES = [
+  { role: 'host',  question: 'committed',
+    why: 'The acts on your bill are part of the night you are already hosting, not a separate commitment.' },
   { role: 'host',  question: 'waiting',
     why: 'Scene has no application closing date (applications_open is a boolean) and no host-side respond-by.' },
   { role: 'venue', question: 'waiting',
@@ -150,17 +182,49 @@ const LEGACY_KEYS = {
   attending: ['attending'],
 };
 
-/** Absent means ON — the house convention (absence-means-default). */
+/**
+ * ⭐⭐ THE PRECEDENCE, AND THE ORDER IS THE WHOLE CONTRACT:
+ *
+ *     1. an EXPLICIT value for the category itself      always wins
+ *     2. an EXPLICIT value for its CAL1 predecessor     preserves the old choice
+ *     3. the category's own `defaultOn`                 lineage, ⛔ not a blanket
+ *
+ * ⛔⛔ STEP 1 IS `typeof === 'boolean'`, ⛔ NOT `=== false`. Once somebody has
+ * switched a new category ON, that stored `true` must survive — a rule that
+ * only looked for `false` would keep re-applying the OFF default and the
+ * toggle would silently spring back every poll.
+ *
+ * ⚠ Step 2 reads the legacy key BOTH ways for the same reason: a CAL1 user who
+ * explicitly turned set times ON keeps them ON, and one who turned them OFF
+ * keeps them OFF.
+ */
 export function mergeCategories(stored = {}) {
-  const off = new Set();
+  const legacyValue = {};
   for (const [legacy, targets] of Object.entries(LEGACY_KEYS)) {
-    if (stored?.[legacy] === false) for (const t of targets) off.add(t);
+    if (typeof stored?.[legacy] === 'boolean') {
+      for (const t of targets) legacyValue[t] = stored[legacy];
+    }
   }
   const out = {};
   for (const c of CALENDAR_CATEGORIES) {
-    out[c.key] = stored?.[c.key] === false ? false : !off.has(c.key);
+    if (typeof stored?.[c.key] === 'boolean') out[c.key] = stored[c.key];
+    else if (typeof legacyValue[c.key] === 'boolean') out[c.key] = legacyValue[c.key];
+    else out[c.key] = c.defaultOn === true;
   }
   return out;
+}
+
+/**
+ * ⭐ WHICH CATEGORIES A READER HAS NEVER ANSWERED FOR — used by the screen to
+ * say "off until you turn it on" rather than letting a switch that has never
+ * been touched look like a setting somebody chose.
+ */
+export function untouchedCategories(stored = {}) {
+  return CALENDAR_CATEGORIES
+    .filter(c => typeof stored?.[c.key] !== 'boolean')
+    .filter(c => !Object.entries(LEGACY_KEYS).some(([legacy, targets]) =>
+      targets.includes(c.key) && typeof stored?.[legacy] === 'boolean'))
+    .map(c => c.key);
 }
 
 /**
@@ -248,11 +312,9 @@ export function feedEvents(payload) {
   if (cats.host_settimes) {
     for (const g of payload.hosting || []) out.push(...setEventsForGig(g));
   }
-  if (cats.host_booked) {
-    for (const g of payload.hosting || []) {
-      for (const row of g.booked || []) push(enquiryBookingEvent(row));
-    }
-  }
+  /* ⛔ NO "committed" BRANCH FOR HOST — see ABSENT_CATEGORIES. The acts on a
+     bill are a property of a night already in the calendar, ⛔ not an
+     appointment of their own. */
 
   /* ── VENUE ──────────────────────────────────────────────────────── */
   if (cats.venue_events) {

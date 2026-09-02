@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  feedEvents, feedCalendar, mergeCategories, CALENDAR_CATEGORIES,
+  feedEvents, feedCalendar, mergeCategories, untouchedCategories, CALENDAR_CATEGORIES,
   calendarFeedUrl, calendarWebcalUrl,
 } from './calendarFeed.js';
 import { slotUid, icsUid, venueLocation, buildCalendar, eventCalendarEvent } from './calendarEvent.js';
@@ -198,13 +198,48 @@ test('⭐ each category switch removes exactly its own items', () => {
   assert.ok(!noDeadlines.some(e => e.uid.startsWith('yespleez-deadline-')));
 });
 
-test('mergeCategories: absent means ON, false means OFF, and every registry key answers', () => {
+test('mergeCategories answers for every registry key, and an explicit false is honoured', () => {
   const merged = mergeCategories({ artist_deadlines: false });
   assert.equal(merged.artist_deadlines, false);
-  for (const c of CALENDAR_CATEGORIES.filter(c => c.key !== 'artist_deadlines')) {
-    assert.equal(merged[c.key], true, c.key);
-  }
   assert.deepEqual(Object.keys(mergeCategories()).sort(), CALENDAR_CATEGORIES.map(c => c.key).sort());
+});
+
+test('⭐⭐ F1 · A CATEGORY NEW IN 2A IS OFF UNTIL IT IS ASKED FOR', () => {
+  /* ⛔⛔ A subscribed calendar is REPLACED on every poll, so a category that
+     arrived switched ON would push entries into a real diary unbidden. */
+  const fresh = mergeCategories({});
+  for (const k of ['diary', 'punter_doors',
+                   'host_events', 'host_settimes',
+                   'venue_events', 'venue_settimes', 'venue_bookings']) {
+    assert.equal(fresh[k], false, `${k} must be OFF for an untouched account`);
+  }
+});
+
+test('⭐⭐ F1 · AND THE CAL1 CATEGORIES STAY ON — silent CONTRACTION is the same bug', () => {
+  /* The four artist keys and `attending` are CAL1's shipped categories under
+     role-scoped names. Defaulting them OFF would empty every existing
+     subscriber's calendar. */
+  const fresh = mergeCategories({});
+  for (const k of ['attending', 'artist_playing', 'artist_sets', 'artist_bookings', 'artist_deadlines']) {
+    assert.equal(fresh[k], true, `${k} is a CAL1 category and must stay ON`);
+  }
+});
+
+test('⭐ an explicit ON for a new category survives — ⛔ the default must not spring back', () => {
+  assert.equal(mergeCategories({ venue_events: true }).venue_events, true);
+  assert.equal(mergeCategories({ diary: true }).diary, true);
+  /* and turning it back off is honoured too */
+  assert.equal(mergeCategories({ diary: false }).diary, false);
+  /* ⛔ enabling one must not enable its neighbours */
+  assert.equal(mergeCategories({ venue_events: true }).venue_settimes, false);
+});
+
+test('untouchedCategories names only what the reader has never answered for', () => {
+  const u = untouchedCategories({ venue_events: true, sets: false });
+  assert.ok(!u.includes('venue_events'), 'explicitly set');
+  assert.ok(!u.includes('artist_sets'), 'answered via its CAL1 predecessor');
+  assert.ok(u.includes('diary'), 'never answered');
+  assert.deepEqual(untouchedCategories({}).sort(), CALENDAR_CATEGORIES.map(c => c.key).sort());
 });
 
 test('⭐⭐ a PRE-2A stored preference still switches off what it always did', () => {
@@ -218,9 +253,13 @@ test('⭐⭐ a PRE-2A stored preference still switches off what it always did', 
   assert.equal(b.artist_playing, false);
   assert.equal(b.artist_bookings, false);
   /* ⛔ and it must not reach beyond what it used to control */
-  assert.equal(b.artist_sets, true);
-  assert.equal(b.venue_bookings, true);
-  assert.equal(b.host_booked, true);
+  assert.equal(b.artist_sets, true, 'a CAL1 sibling it never governed stays ON');
+  /* ⚠ These are 2A categories, so they are OFF by their own default rather
+     than by the legacy key — the legacy key must not be what decides them. */
+  assert.equal(b.venue_bookings, false);
+  assert.equal(b.host_settimes, false);
+  assert.equal(mergeCategories({ bookings: true }).venue_bookings, false,
+    'a legacy ON must not switch on a category it never governed');
 });
 
 test('a new-key setting wins and legacy keys never resurrect an explicit OFF', () => {

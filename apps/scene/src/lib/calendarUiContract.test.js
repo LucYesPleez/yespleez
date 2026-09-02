@@ -116,6 +116,27 @@ test('⛔ an unsupported question is ABSENT with a stated reason, never a dead t
   assert.ok(/role: 'venue',\s+question: 'waiting'/.test(feed));
 });
 
+test('⭐⭐ F1 · the screen shows a never-answered 2A category as off-until-asked-for', () => {
+  const screen = src('../screens/CalendarScreen.jsx');
+  assert.ok(screen.includes('untouchedCategories(row?.categories)'),
+    'the screen knows which categories have never been answered');
+  assert.match(screen, /!cats\[c\.key\] && untouched\.has\(c\.key\)/,
+    'and says so only for an untouched category that is off');
+  assert.ok(screen.includes('Not in your calendar yet'),
+    '⛔ an untouched switch must not read as a setting somebody chose');
+});
+
+test('⭐⭐ F1 · defaults are per-category LINEAGE, ⛔ never a blanket rule', () => {
+  const feed = src('./calendarFeed.js');
+  /* every category declares its own default */
+  const decls = feed.match(/defaultOn: (true|false)/g) || [];
+  const keys = feed.match(/\{ key: '[a-z_]+', role:/g) || [];
+  assert.equal(decls.length, keys.length, 'every category declares a default');
+  /* and the merge honours an explicit value of EITHER polarity first */
+  assert.ok(feed.includes("typeof stored?.[c.key] === 'boolean'"),
+    '⛔ not `=== false`: a stored true must survive an off-by-default category');
+});
+
 test('⛔ Phase 2A ships NO festival, volunteer or vendor role', () => {
   const feed = src('./calendarFeed.js');
   const roles = feed.slice(feed.indexOf('export const CALENDAR_ROLES'), feed.indexOf('export const CALENDAR_CATEGORIES'));

@@ -95,7 +95,14 @@ export async function disableCalendarSync(userId) {
 
 /**
  * Flip one category. Merges into the stored jsonb so the other toggles are
- * untouched; absence still means ON (see mergeCategories).
+ * untouched.
+ *
+ * ⚠ WRITING AN EXPLICIT BOOLEAN IS THE POINT. A category's default depends on
+ * its lineage (see `mergeCategories`), so the only way a reader's choice
+ * outranks that default is for it to be stored — including a `true` on a
+ * category that defaults OFF. ⛔ Never "clean up" a stored value that merely
+ * equals the default; that would hand the category back to the default and
+ * the toggle would spring back.
  */
 export async function setCalendarCategory(userId, key, on, storedCategories = {}) {
   const categories = { ...storedCategories, [key]: !!on };
