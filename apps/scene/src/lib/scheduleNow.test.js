@@ -288,6 +288,12 @@ test('before it starts, the next day still to come', () => {
 test('⛔ once it is over it opens on the LAST day, not the first', () => {
   // The final night is the most recent thing that happened. Opening a finished
   // festival on its opening day is the same mistake in the other direction.
+  //
+  // ⚠⚠ NARROWED 2026-09-01. This is now the fallback for days that carry NO
+  // slots, which is all `FEST` has. Where a day knows its programme, a finished
+  // festival opens on its BIGGEST night instead — the last day is usually the
+  // wind-down, and Neverland's was three workshops. See the busiest-day tests
+  // at the foot of this file.
   assert.equal(focusDayIndex(FEST, '2026-09-05'), 2);
 });
 
@@ -310,4 +316,61 @@ test('no days, and dateless days, do not throw', () => {
   // Dates were never set on this event; the last day is as good an answer as
   // any and stays consistent with the all-past case.
   assert.equal(focusDayIndex([{ dayIndex: 0 }, { dayIndex: 1 }], '2026-08-29'), 1);
+});
+
+/**
+ * ⭐⭐ A FINISHED FESTIVAL OPENS ON ITS BIGGEST NIGHT (owner, 2026-09-01:
+ * "show the main part of the festival, go the friday night or sat night").
+ *
+ * ⛔⛔ THE LAST DAY IS THE WIND-DOWN. Neverland Weekender runs two stages on
+ * Friday and Saturday and three workshops on Sunday; opening on Sunday with
+ * the LIVE stage selected showed an empty column on an event with 38 set
+ * times.
+ */
+const FEST_SLOTS = [
+  { dayIndex: 0, date: '2026-08-28', stages: [{ slots: new Array(8).fill({}) }, { slots: new Array(6).fill({}) }] },
+  { dayIndex: 1, date: '2026-08-29', stages: [{ slots: new Array(10).fill({}) }, { slots: new Array(7).fill({}) }, { slots: new Array(4).fill({}) }] },
+  { dayIndex: 2, date: '2026-08-30', stages: [{ slots: new Array(3).fill({}) }] },
+];
+
+/**
+ * ⚠⚠ THIS ASSERTED THE BUSIEST DAY (1) UNTIL 2026-09-01, and the rule it
+ * pinned was mine. By count Saturday IS bigger — nine live acts to Friday's
+ * six — so it was choosing correctly and still produced the worse page.
+ *
+ * ⭐ A finished festival is READ, not navigated: it opens on the night it
+ * opened on, which carries the Welcome to Country and the acts whose profiles
+ * have artwork. Volume was the measurable thing, ⛔ not the right one.
+ */
+test('once it is over it opens on the OPENING night', () => {
+  assert.equal(focusDayIndex(FEST_SLOTS, '2026-09-05'), 0, 'Friday opened the festival');
+});
+
+/**
+ * ⛔ THE OPENING-NIGHT RULE NEVER OUTRANKS WHERE YOU ARE. These are questions
+ * about the present, and a reader standing in the field on Sunday wants
+ * Sunday — not the Friday that is already over.
+ */
+test('a running or upcoming festival still opens on today, or on its first day', () => {
+  assert.equal(focusDayIndex(FEST_SLOTS, '2026-08-30'), 2, 'standing in Sunday');
+  assert.equal(focusDayIndex(FEST_SLOTS, '2026-08-01'), 0, 'still to come');
+});
+
+/* ⚠ Bare days carry no slots, and those callers keep the old rule exactly. */
+test('with no slot data a finished event still opens on the last day', () => {
+  assert.equal(focusDayIndex(FEST, '2026-09-05'), 2);
+});
+
+/**
+ * ⛔ THE OPENING NIGHT IS THE FIRST DAY WITH A PROGRAMME, ⛔ not `list[0]`. A
+ * festival can carry a build day, or a day whose slots were never filled in,
+ * and opening on an empty one is the blank the whole rule exists to avoid.
+ */
+test('a build day with nothing on it is skipped', () => {
+  const withBuildDay = [
+    { dayIndex: 0, date: '2026-08-27', stages: [{ slots: [] }] },
+    { dayIndex: 1, date: '2026-08-28', stages: [{ slots: new Array(5).fill({}) }] },
+    { dayIndex: 2, date: '2026-08-29', stages: [{ slots: new Array(9).fill({}) }] },
+  ];
+  assert.equal(focusDayIndex(withBuildDay, '2026-09-05'), 1);
 });

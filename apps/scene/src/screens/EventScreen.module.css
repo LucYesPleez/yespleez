@@ -362,6 +362,13 @@
 
 .manageBtn {
   width: 100%;
+  /* ⚠ ONE LINE, OR ITS OWN LINE — never a broken label. Sharing a row with
+     HOST DASH (which does not shrink) squeezed this to 81px at 340px and
+     "MANAGE EVENT ›" wrapped mid-phrase. `min-width` is what makes the row
+     wrap instead: below this the button drops to a full-width line of its own
+     with the label intact. Measured across 280–430px. */
+  min-width: 140px;
+  white-space: nowrap;
   padding: 13px 0;
   background: linear-gradient(var(--card2), var(--card2)) padding-box,
               linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
@@ -795,6 +802,52 @@
    ⛔ NO TEXT AND NO TIME. The cards either side already say when the gap is,
    and a blank card that labels itself is the "nothing on" filler this grid was
    built to remove. */
+/* ⭐⭐ A DARK STAGE, NOT A HOLE. Every day carries a bucket for every stage of
+   the event, so a stage that is not running that day rendered an empty grid
+   column — 38 set times on the event and a blank band on the page. This fills
+   the column, names the day, and points at the stage that IS on.
+
+   ⚠ Quiet on purpose: it is a fact about the programme, ⛔ not a warning. It
+   borrows `.stagePageFill`'s tones rather than introducing a new surface. */
+.stagePageEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 14px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid rgba(255, 255, 255, .05);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.stagePageEmptyLine {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, .42);
+}
+
+.stagePageEmptyBtn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .18);
+  /* ⚠ One line — a stage name must not break across two inside a pill. */
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stagePageEmptyBtn:hover { background: rgba(255, 255, 255, .12); }
+
 .stagePageFill {
   border-radius: 10px;
   pointer-events: none;

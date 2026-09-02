@@ -282,9 +282,33 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
      * unconditionally. `_live_` appeared on cards reading PLAYED and UPCOMING
      * in the same list.
      */
-    const liveEl = box?.querySelector(`.${s.playing}`);
-    // ⚠ Nothing on stage (before doors, between days, or the data is still
-    // resolving) — leave the peek at the top and try again on the next tick.
+    /**
+     * ⭐⭐ NOTHING PLAYING FALLS BACK TO THE FIRST ACT, ⛔ never to the top of
+     * the grid (owner, 2026-09-01: "its still on an empty set time").
+     *
+     * ⛔⛔ LEAVING IT AT THE TOP IS NOT NEUTRAL — it is the blank. The grid
+     * starts at the earliest slot ACROSS ALL STAGES, so a stage that opens
+     * later begins with empty rows: Neverland's Saturday runs workshops from
+     * 10am and the live stage from 2pm, which is four hours — sixteen rows at a
+     * 15-minute interval — of nothing above the first band. The peek opened
+     * there and read as "no set times" on a day with twenty-one of them.
+     *
+     * ⚠ IT ONLY BIT ON A FINISHED OR NOT-YET-STARTED EVENT, which is why it
+     * survived: while something is on stage there IS a `.playing` card and this
+     * never ran. Every past festival opened on a wall of empty grid.
+     *
+     * ⚠ THE FIRST CARD IN THE DOM IS THE ACTIVE STAGE'S. Cells are emitted
+     * stage by stage, so `querySelector` returns the first act of the column
+     * the reader is parked on rather than the earliest act of the day on some
+     * other stage.
+     *
+     * ⛔ STILL ONCE. `centred` guards this the same way; a reader who scrolls
+     * away is not dragged back.
+     */
+    const playingEl = box?.querySelector(`.${s.playing}`);
+    const liveEl = playingEl || box?.querySelector(`.${es.stagePageCell}`);
+    // ⚠ No cards at all — the day is genuinely empty, or the data is still
+    // resolving. Leave the peek alone and try again on the next tick.
     if (!box || !liveEl) return;
     /**
      * ⛔⛔ MEASURED FROM RECTS, ⛔ NEVER `offsetTop` — AND THIS IS THE SECOND
@@ -304,12 +328,22 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
       - box.getBoundingClientRect().top
       + box.scrollTop;
 
-    box.scrollTop = peekScrollTop(
-      top,
-      liveEl.getBoundingClientRect().height,
-      box.clientHeight,
-      PEEK_FADE_PX,
-    );
+    /**
+     * ⭐ CENTRING ANSWERS "WHERE IS THE NIGHT UP TO", which is only a question
+     * while a night is running. ⛔ Centring the FIRST act instead puts half a
+     * box of empty grid above it — a smaller version of the blank this fixes.
+     * A finished or unstarted programme simply starts at its first act.
+     */
+    box.scrollTop = playingEl
+      ? peekScrollTop(
+        top,
+        liveEl.getBoundingClientRect().height,
+        box.clientHeight,
+        PEEK_FADE_PX,
+      )
+      /* ⚠ A few pixels of air so the card does not sit flush against the top
+         edge and read as clipped. */
+      : Math.max(0, top - 8);
     centred.current = true;
   }, [open, now, peekDays.length]);
   const [stage, setStage] = useState({ index: 0, from: null });
@@ -925,6 +959,53 @@ function StagePager({ day, allMixSlots, now, sync, calBySlot = null }) {
             style={{ gridColumn: i + 1, gridRow: `${run.row + 1} / span ${run.span}` }}
           />
         )))}
+
+        {/**
+          * ⭐⭐ A STAGE THAT IS DARK TONIGHT SAYS SO (owner, 2026-09-01: "it
+          * looks like there are no set times… just dont ever have this spot
+          * blank").
+          *
+          * ⛔⛔ EVERY DAY GETS A BUCKET FOR EVERY STAGE, empty ones included —
+          * `scheduleModel` builds one per stage of the EVENT, not per stage
+          * running that day. Neverland runs LIVE and DJ on Friday and Saturday
+          * and only WORKSHOPS on Sunday, so Sunday's LIVE column had nothing in
+          * it and the section under the chips was simply empty. Thirty-eight
+          * set times exist and the page showed a hole.
+          *
+          * ⛔ THE PAGER COULD NOT BE THE ANSWER. The stage index is SHARED
+          * across days — one index positions all of them — so auto-jumping
+          * Sunday to Workshops drags Friday there too, and Friday has no
+          * workshops. That trades one blank for another.
+          *
+          * ⭐ So the empty column fills itself: it names the day, says nothing
+          * is on, and offers the stage that IS running. Tapping it is an
+          * ordinary chip jump, which is allowed to move every day because the
+          * reader asked for it.
+          *
+          * ⚠ Spans the whole grid so the column has the height of its
+          * neighbours; a short notice in a tall grid would leave the hole this
+          * exists to remove (Rendering Contract: absent, never a visual gap).
+          */}
+        {stages.map((st, sIdx) => {
+          if (grid.stages[sIdx]?.length) return null;
+          const alt = stages.findIndex((_s, i) => grid.stages[i]?.length);
+          return (
+            <div
+              key={'empty' + (st.id ?? sIdx)}
+              className={es.stagePageEmpty}
+              style={{ gridColumn: sIdx + 1, gridRow: `1 / span ${Math.max(1, grid.rows)}` }}
+            >
+              <span className={es.stagePageEmptyLine}>
+                Nothing on {st.name}{day?.name ? ` on ${day.name}` : ''}.
+              </span>
+              {alt >= 0 && alt !== sIdx && (
+                <button type="button" className={es.stagePageEmptyBtn} onClick={() => jumpTo(alt)}>
+                  {stages[alt].name} →
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         {stages.map((st, sIdx) => (
           <Fragment key={'c' + (st.id ?? 'implicit')}>

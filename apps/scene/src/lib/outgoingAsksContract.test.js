@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { rawStatusesFor } from './enquiryUtils.js';
 
 /**
  * ⚠⚠ AN ENQUIRY YOU SENT MUST BE VISIBLE TO YOU.
@@ -30,7 +31,9 @@ import { fileURLToPath } from 'node:url';
 const read = name => readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8');
 const DASH = read('../screens/ArtistDashboard.jsx');
 const PIPE = read('./outgoingPipeline.js');
-const ROW  = read('../components/OutgoingEnquiryRow.jsx');
+/* ⚠ `OutgoingEnquiryRow` WAS ABSORBED into EnquiryCard (2026-09-01) — ONE card
+   for every enquiry, every surface. `ROW` is that card now. */
+const ROW  = read('../components/EnquiryCard.jsx');
 
 test('the shared query asks for the enquiries the profile SENT', () => {
   assert.match(PIPE, /eq\('applicant_profile_id', profileId\)[\s\S]{0,40}eq\('initiated_by', 'applicant'\)/,
@@ -92,15 +95,32 @@ test('the merged list is sorted across both sources, not concatenated', () => {
  * `pending` must land in the same bucket, whichever function that is. If the
  * sub-tabs ever special-case one source, that is the regression.
  *
- * ⚠ `applicantLabel` IS STILL LIVE — it words the row BADGES, where the asker's
- * own vocabulary belongs. A tab is navigation and must match every surface; a
- * badge is commentary on one row.
+ * ⚠⚠ SUPERSEDED 2026-09-01 — `applicantLabel` NO LONGER WORDS THE BADGES.
+ * "A badge is commentary on one row" was the reasoning, and it produced a row
+ * filed under ACCEPTED wearing a BOOKED sticker. See the badge test below.
  */
 test('both sources share one status mapping', () => {
   assert.match(DASH, /const outStatuses = outgoingItems[\s\S]{0,160}bucket: normaliseStatus\(/,
     'the two sources must be bucketed by one function before any filtering');
   assert.match(DASH, /filteredOut = outStatuses\.filter\(it => \{[\s\S]{0,120}it\.bucket !== outStatusTab/,
     'the filter must read the shared bucket, not a per-source status');
+});
+
+/**
+ * ⭐⭐ THE BADGE IS THE TAB IT SITS IN (owner, 2026-09-01).
+ *
+ * ⛔⛔ "BOOKED" MEANS ONE THING ON THIS SCREEN: on a lineup, playing. The
+ * top-level BOOKED tab counts real gigs (`upcomingGigs`). An accepted enquiry
+ * holds no slot and creates no `lineup_member`, so badging it BOOKED asserted a
+ * booking the same screen was correctly refusing to list.
+ */
+test('the row badge reads the canonical bucket, never a second vocabulary', () => {
+  assert.match(DASH, /const badge = bucket\.toUpperCase\(\)/,
+    'the badge must be the bucket the tab already filtered on');
+  assert.doesNotMatch(DASH, /const badge = applicantLabel\(/,
+    'a second status vocabulary has come back to the badges');
+  assert.doesNotMatch(DASH, /APP_TAB_COLOR\[/,
+    'the badge colour must come from STATUS_TAB_COLOR, keyed by the same word');
 });
 
 test('the tab counts and the stat tile count the same list the tab renders', () => {
@@ -135,13 +155,164 @@ test('the performer surface renders the shared enquiry chrome, not its own copy'
  * places i applied to." A withdrawal is not a verdict; filing it as one makes
  * the rejections list useless for the thing it is for.
  */
+/* ⚠ THE WRITE MOVED (2026-09-01) to lib/cancelEnquiry.js — HostDashboard needed
+   the same decision and had been open-coding a broken one. The law is unchanged;
+   only its address is. */
 test('cancelling writes `cancelled` and hides the row — it never writes `declined`', () => {
-  const fn = DASH.slice(DASH.indexOf('async function handleCancelEnquiry'));
-  const body = fn.slice(0, fn.indexOf('}\n'));
-  assert.match(body, /status: 'cancelled'/, 'a withdrawal must not be filed as the venue\'s verdict');
-  assert.doesNotMatch(body, /status: 'declined'/);
-  assert.match(body, /applicant_cleared_at: new Date\(\)\.toISOString\(\)/,
-    'cancelling must also remove the row from the asker\'s own list');
+  const CANCEL = read('./cancelEnquiry.js');
+  assert.match(CANCEL, /status: 'cancelled'/, 'a withdrawal must not be filed as the venue\'s verdict');
+  assert.doesNotMatch(CANCEL, /status: 'declined'/);
+  /* ⚠⚠ THE CLEARED COLUMN IS DERIVED, NOT NAMED (2026-09-01). It was hard-coded
+     to `applicant_cleared_at`, which is only correct when the APPLICANT is the
+     one cancelling. A venue withdrawing an offer it sent left its own column
+     null — so its list re-fetched the row and the cancel looked like a no-op —
+     while writing the applicant's column would have hidden the row from the
+     artist, who never asked for it to go. */
+  assert.match(CANCEL, /\[clearedCol\]: new Date\(\)\.toISOString\(\)/,
+    'cancelling must remove the row from the CANCELLER\'s own list, whichever side that is');
+  assert.match(CANCEL, /clearedColumnFor\(enq, actingProfileId\)/,
+    'the cleared column must come from the shared helper, never be re-derived');
+  assert.match(CANCEL, /\.eq\(scopeCol, actingProfileId\)/,
+    'the write must be scoped to the side that is acting');
+});
+
+/**
+ * ⭐⭐ ONE CANCEL, NOT ONE PER DASHBOARD.
+ *
+ * ⛔⛔ THIS IS THE DEFECT THAT MADE THE FIX NECESSARY. HostDashboard routed
+ * every id through `allApps` — the APPLICATIONS list — so an outgoing enquiry
+ * fell through `if (!app) return` and CANCEL ENQUIRY wrote nothing at all,
+ * silently. EnquiryDossierSheet meanwhile wrote `declined`. Three surfaces,
+ * three answers, one decision.
+ */
+test('no dashboard writes the cancel itself', () => {
+  /* ⚠⚠ VenueDashboard ADDED 2026-09-01. It was writing `status` directly, which
+     set no cleared column and sent no notice — so a venue withdrawing its own
+     offer saw the row come straight back. Three screens open-coding one
+     decision is how the first cancel bug happened; this is the third. */
+  for (const f of ['../screens/ArtistDashboard.jsx', '../screens/HostDashboard.jsx', '../screens/VenueDashboard.jsx']) {
+    const SRC = read(f);
+    assert.doesNotMatch(SRC, /status: 'cancelled'/,
+      `${f} has re-implemented the cancel write instead of calling cancelEnquiry`);
+    assert.match(SRC, /cancelEnquiry\(/, `${f} must call the shared cancel`);
+  }
+});
+
+/**
+ * ⭐ CANCEL AND ITS CONFIRMATION MUST AGREE ABOUT WHICH ROWS QUALIFY.
+ * `accepted` became cancellable on 2026-09-01 (owner: plans fall through);
+ * `declined` stays out — CLEAR is that row's control.
+ */
+test('every cancel control offers the same statuses', () => {
+  const CARD  = read('../components/EnquiryCard.jsx');
+  const SHEET = read('../components/EnquiryDossierSheet.jsx');
+  /* ⭐ TWO SUBJECTS NOW, NOT THREE — the row and the card ARE one component,
+     which is the strongest form this invariant has ever had: the dense and
+     rich densities cannot disagree about which statuses may be cancelled,
+     because they read the same `cancelBtn`. */
+  for (const [name, src] of [['EnquiryCard', CARD], ['EnquiryDossierSheet', SHEET]]) {
+    assert.match(src, /'accepted'/, `${name} must offer cancel on an accepted ask`);
+  }
+  /* ⛔ The sheet had NO gate at all and offered cancel on settled rows. */
+  assert.match(SHEET, /const cancellable =/, 'the dossier sheet must gate its cancel button');
+  /* ⚠ SCOPED TO THE CANCEL BUTTON. `respond('declined')` is CORRECT further
+     down in the same file — that is the recipient's DECLINE on an incoming
+     enquiry. Only the control LABELLED cancel must never write it. */
+  const cancelBtn = SHEET.slice(SHEET.indexOf('label="CANCEL ENQUIRY"') - 200,
+                                SHEET.indexOf('label="CANCEL ENQUIRY"') + 200);
+  assert.match(cancelBtn, /respond\('cancelled'\)/,
+    'the sheet is the asker\'s side — `declined` there is the venue\'s verdict');
+});
+
+/**
+ * ⭐⭐ A WITHDRAWN ASK MUST STOP MARKING THE DATE (owner, 2026-09-01).
+ *
+ * ⛔⛔ THE "YOU ENQUIRED" DOT HAD NO STATUS FILTER, so every enquiry ever sent
+ * marked its date forever. Cancelling both asks for 17 Oct left the venue's
+ * availability calendar still saying YOU ENQUIRED — which inverts the dot's
+ * only job. It exists to stop you asking twice; instead it was warning you off
+ * a date you had deliberately freed.
+ */
+test('the availability dot counts only LIVE asks', () => {
+  const live = [
+    ...rawStatusesFor('awaiting',   'outgoing'),
+    ...rawStatusesFor('interested', 'outgoing'),
+    ...rawStatusesFor('accepted',   'outgoing'),
+  ];
+  assert.ok(live.includes('pending'),  'an unanswered ask must still mark the date');
+  assert.ok(live.includes('accepted'), 'an accepted ask must still mark the date');
+  assert.ok(!live.includes('cancelled'), 'a withdrawn ask must not mark the date');
+  assert.ok(!live.includes('declined'),  'a refused ask must not block asking again');
+  assert.ok(!live.includes('rejected'),  'a refused ask must not block asking again');
+
+  const SCREEN = read('../screens/ProfileScreen.jsx');
+  /* ⛔ DERIVED, never a hand-typed status list — that is how a later status
+     quietly falls outside the filter. */
+  assert.match(SCREEN, /\.in\('status', \[\s*\n?\s*\.\.\.rawStatusesFor\('awaiting',\s*'outgoing'\)/,
+    'the enquired-dates query has lost its status filter, or hand-lists statuses');
+});
+
+/**
+ * ⭐⭐ CANCEL IS TWO STEPS, ON EVERY SURFACE (owner, 2026-09-01).
+ *
+ * ⛔⛔ IT CANNOT BE UNDONE AND IT IS NO LONGER SILENT — withdrawing an accepted
+ * enquiry notifies AND emails the venue. Both the card and the sheet offer the
+ * control, and one-tap on each is how a single withdrawal sent two notices.
+ * ⛔ Guarding one door and not the other is the same bug with a longer fuse.
+ */
+test('cancel is confirmed before it writes, on both surfaces', () => {
+  const CARD  = read('../components/EnquiryCard.jsx');
+  const SHEET = read('../components/EnquiryDossierSheet.jsx');
+  for (const [name, src] of [['EnquiryCard', CARD], ['EnquiryDossierSheet', SHEET]]) {
+    /* ⛔ The labelled control opens the confirmation; it must never write. */
+    assert.match(src, /label="CANCEL ENQUIRY"\s*\n?\s*onClick=\{\(\) => setConfirming\(true\)\}/,
+      `${name}: CANCEL ENQUIRY writes directly instead of asking first`);
+    assert.match(src, /YES, CANCEL|'YES, CANCEL'/, `${name} has no confirming step`);
+    assert.match(src, /KEEP IT/, `${name} offers no way out of the confirmation`);
+  }
+});
+
+/**
+ * ⭐⭐ A VENUE MUST LEARN THAT AN ACCEPTED DATE FELL THROUGH (owner,
+ * 2026-09-01: "they need to know to fill the spot after someone pulls out").
+ *
+ * ⛔ AND ONLY THEN. Withdrawing an ask nobody answered is not news.
+ */
+test('cancelling an accepted ask notifies the venue, and only then', () => {
+  const CANCEL = read('./cancelEnquiry.js');
+  assert.match(CANCEL, /if \(wasAccepted\) \{/, 'the notice must be gated on the prior status');
+  assert.match(CANCEL, /wasAccepted = normaliseStatus\(/,
+    'read the status BEFORE the write — afterwards every row is `cancelled`');
+  assert.match(CANCEL, /type:\s*'booking_cancelled'/,
+    'an unregistered type renders as an inert row with no icon and nowhere to go');
+  /* ⚠ ADDRESSED TO THE OTHER SIDE, whichever side that is — and from the ROW,
+     because `profiles.user_id` is not an identity. */
+  assert.match(CANCEL, /toUserId:\s*\(isVenueSide \? enq\.applicant_user_id : enq\.venue_user_id\)/,
+    'the notice must go to the party who did NOT cancel');
+  /* ⛔ ONE MESSAGE FOR BOTH DIRECTIONS WOULD LIE TO ONE OF THEM: an act pulling
+     out frees a spot; a venue withdrawing takes a booking away. */
+  assert.match(CANCEL, /has withdrawn their offer/,
+    'a venue cancelling must not tell the artist their own spot is open again');
+  assert.match(CANCEL, /has pulled out/, 'the applicant-side wording is gone');
+  /* ⛔ Telling a venue an act pulled out of a booking that is still live is
+     worse than the silence this replaced. */
+  assert.match(CANCEL, /if \(error\) return \{ error \};[\s\S]*if \(wasAccepted\)/,
+    'a failed write must not notify — the error return must come FIRST');
+});
+
+/**
+ * ⛔⛔ ONE WITHDRAWAL, ONE NOTICE. Found in real testing 2026-09-01: cancel is
+ * offered on BOTH the card and the sheet, and pressing it twice sent the venue
+ * two "they pulled out" notices for a single enquiry — the second press read a
+ * React prop that had not caught up with the database.
+ */
+test('cancelling twice notifies once', () => {
+  const CANCEL = read('./cancelEnquiry.js');
+  assert.match(CANCEL, /\.neq\('status', 'cancelled'\)/,
+    'the guard must be in the WRITE — a client-side flag describes what the browser last heard');
+  assert.match(CANCEL, /\.select\('id'\)/, 'the write must report what it actually changed');
+  assert.match(CANCEL, /if \(!changed\?\.length\) return[^\n]*\n[\s\S]*?if \(wasAccepted\)/,
+    'a no-op write must return BEFORE the notification');
 });
 
 test('a cancelled ask leaves the venue\'s NEW pile', () => {

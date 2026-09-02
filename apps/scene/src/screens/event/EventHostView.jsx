@@ -24,7 +24,7 @@ import { notifyState } from '../../lib/notifyPlan';
 import { sendSlotNotice } from '../../lib/notifySender';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
-import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot, planPublishSetTimes, applyPublishSetTimes } from '../../lib/lineupActions';
+import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot, planPublishSetTimes, applyPublishSetTimes, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
@@ -137,6 +137,20 @@ export default function EventHostView({
    * the error is what makes that class of failure visible if it ever returns.
    */
   const [slotError,     setSlotError]     = useState('');
+  /**
+   * ⛔⛔ THIS STATE DID NOT EXIST AND THREE HANDLERS CALLED ITS SETTER.
+   *
+   * ⚠⚠ `setLineupError(...)` appeared at every failure exit of "offer this
+   * member a slot" and "promote to the bill" — so the one path that was
+   * supposed to EXPLAIN a refusal was the path that threw a ReferenceError
+   * instead. The comment beside one of them reads "SURFACED, NEVER SWALLOWED —
+   * RLS filters an UPDATE rather than erroring it, so a blocked write looks
+   * exactly like a button that did nothing", which is exactly what it did.
+   *
+   * ⚠ The banner below is the other half. State alone would have stopped the
+   * crash and kept the silence, which is the worse half of the bug.
+   */
+  const [lineupError,   setLineupError]   = useState('');
   const [publishError,  setPublishError]  = useState('');
   const [publishing,    setPublishing]    = useState(false);
   /* Taking somebody off a bill is irreversible-looking and affects a real
@@ -757,7 +771,13 @@ export default function EventHostView({
                 the right-hand stack — leaving the buttons that act on THIS event
                 on one line, and the stack for the ones that change how you are
                 viewing it. */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+            {/* ⚠ WRAPS BELOW ~360px, BY DESIGN. HOST DASH is flexShrink:0 and
+                keeps its width, so MANAGE EVENT (flex:1) absorbed every pixel
+                of shrink and its label broke onto two lines at 340px — measured
+                across 280-430px. Allowing the ROW to wrap lets MANAGE EVENT
+                drop to its own full-width line with its label intact, which is
+                the honest trade: one more line beats a broken word. */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
               {/**
                 * ⚠ THE PINK/WHITE COMBO FROM `HoverProfileBtn` (owner,
                 * 2026-08-16) — the treatment the old profile control used, and
@@ -1031,6 +1051,22 @@ export default function EventHostView({
             That slot could not be saved. Nothing was changed. {slotError}
           </span>
           <button onClick={() => setSlotError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+      )}
+
+      {/* ⭐ THE LINEUP'S OWN REFUSALS — a bill that is full, or a write RLS
+          filtered. ⛔ Same treatment as the slot banner deliberately: these
+          fail the same silent way and a host should not have to learn two
+          shapes of bad news.
+          ⚠ NOT gated on `showEditor`. Promoting to the bill is reachable with
+          the editor closed, and an error that renders only inside a panel the
+          host is not looking at has not been surfaced at all. */}
+      {effectiveIsHost && lineupError && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
+          <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>
+            That change to the lineup did not go through. Nothing was changed. {lineupError}
+          </span>
+          <button onClick={() => setLineupError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
         </div>
       )}
 

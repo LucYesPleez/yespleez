@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDashboardLanding } from '../lib/useDashboardLanding';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { planAcceptedEnquiry, draftEventForAcceptance } from '../lib/acceptedEnquiryEvent';
@@ -200,6 +201,29 @@ export default function VenueDashboard({ userId: userIdProp }) {
   }
 
   async function handleEnquiryRespond(id, status) {
+    /**
+     * ⛔⛔ CANCELLING IS NOT A STATUS WRITE, AND TREATING IT AS ONE MADE THE
+     * VENUE'S CANCEL DO NOTHING VISIBLE (2026-09-01).
+     *
+     * ⚠⚠ The generic write below sets `status` and NOTHING ELSE. For a venue
+     * withdrawing an offer it SENT that left `venue_cleared_at` null, and this
+     * screen fetches with `.is('venue_cleared_at', null)` — so the row came
+     * straight back, and with no `cancelled` key in the outgoing status map it
+     * came back into AWAITING. The write worked; the row looked untouched.
+     *
+     * ⭐ `cancelEnquiry` owns the whole act: the correct cleared column for the
+     * side that is acting, the duplicate guard, and the notice to the OTHER
+     * party. ⛔ Do not re-implement any of it here — three screens open-coding
+     * this is how the first cancel bug happened.
+     */
+    if (status === 'cancelled') {
+      const row = allEnquiries.find(e => e.id === id);
+      if (!row || !profile?.id) return;
+      const { error } = await cancelEnquiry(row, profile.id, profile.name);
+      if (error) return;
+      setEnquiries(allEnquiries.filter(e => e.id !== id));
+      return;
+    }
     await supabase.from('venue_enquiries').update({ status }).eq('id', id);
     setEnquiries(allEnquiries.map(e => e.id === id ? { ...e, status } : e));
     const enq = allEnquiries.find(e => e.id === id);
@@ -214,7 +238,13 @@ export default function VenueDashboard({ userId: userIdProp }) {
     const eventName = enq.event_name || null;
     const NOTIF = {
       shortlisted: { type: 'shortlisted',         message: `${venueName} shortlisted you${eventName ? ` for ${eventName}` : ''}.` },
-      accepted:    { type: 'booking_confirmed',    message: `${venueName} accepted you${eventName ? ` for ${eventName}` : ''}. You're booked!` },
+      /* ⛔⛔ "YOU'RE BOOKED!" WAS FALSE AND IT SET THE WRONG EXPECTATION AT THE
+         WORST MOMENT. Acceptance opens the booking relationship; it agrees no
+         fee, creates no event and holds no slot. An act that reads "you're
+         booked" stops chasing terms, and the first thing they learn otherwise
+         is when the night does not happen. ⭐ Says what is true and what is
+         next — the same two things the card now says. */
+      accepted:    { type: 'booking_confirmed',    message: `${venueName} accepted your enquiry${eventName ? ` for ${eventName}` : ''}. Next: agree the booking details.` },
       booked:      { type: 'booking_confirmed',    message: `${venueName} confirmed your booking${eventName ? ` for ${eventName}` : ''}.` },
       declined:    { type: 'application_declined', message: `${venueName} passed on your application${eventName ? ` for ${eventName}` : ''}.` },
       interested:  { type: 'shortlisted',          message: `${venueName} is interested in your enquiry${eventName ? ` for ${eventName}` : ''}.` },
