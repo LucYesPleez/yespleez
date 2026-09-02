@@ -199,12 +199,33 @@ test('⭐ each category switch removes exactly its own items', () => {
 });
 
 test('mergeCategories: absent means ON, false means OFF, and every registry key answers', () => {
-  const merged = mergeCategories({ deadlines: false });
-  assert.equal(merged.deadlines, false);
-  for (const c of CALENDAR_CATEGORIES.filter(c => c.key !== 'deadlines')) {
+  const merged = mergeCategories({ artist_deadlines: false });
+  assert.equal(merged.artist_deadlines, false);
+  for (const c of CALENDAR_CATEGORIES.filter(c => c.key !== 'artist_deadlines')) {
     assert.equal(merged[c.key], true, c.key);
   }
   assert.deepEqual(Object.keys(mergeCategories()).sort(), CALENDAR_CATEGORIES.map(c => c.key).sort());
+});
+
+test('⭐⭐ a PRE-2A stored preference still switches off what it always did', () => {
+  /* ⛔⛔ Absence means ON, so only an explicit false carries information —
+     dropping the old keys would silently turn every deliberate OFF back ON. */
+  assert.equal(mergeCategories({ sets: false }).artist_sets, false);
+  assert.equal(mergeCategories({ deadlines: false }).artist_deadlines, false);
+  assert.equal(mergeCategories({ attending: false }).attending, false);
+  /* ⚠ The old `bookings` covered TWO of the new questions. */
+  const b = mergeCategories({ bookings: false });
+  assert.equal(b.artist_playing, false);
+  assert.equal(b.artist_bookings, false);
+  /* ⛔ and it must not reach beyond what it used to control */
+  assert.equal(b.artist_sets, true);
+  assert.equal(b.venue_bookings, true);
+  assert.equal(b.host_booked, true);
+});
+
+test('a new-key setting wins and legacy keys never resurrect an explicit OFF', () => {
+  assert.equal(mergeCategories({ sets: false, artist_sets: false }).artist_sets, false);
+  assert.equal(mergeCategories({ venue_events: false }).venue_events, false);
 });
 
 /* ── privacy ───────────────────────────────────────────────────────── */

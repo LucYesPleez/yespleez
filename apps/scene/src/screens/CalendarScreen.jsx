@@ -25,13 +25,23 @@
  * notification preferences, and never conflated with them.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import { useSession } from '../App';
-import { CALENDAR_CATEGORIES, mergeCategories } from '../lib/calendarFeed';
 import {
-  fetchCalendarPrefs, enableCalendarSync, disableCalendarSync,
+  QUESTIONS, ABSENT_CATEGORIES, mergeCategories,
+  rolesForAccount, categoriesForRole,
+} from '../lib/calendarFeed';
+import {
+  fetchCalendarPrefs, fetchProfileTypes, enableCalendarSync, disableCalendarSync,
   setCalendarCategory, calendarFeedUrl, calendarWebcalUrl,
 } from '../lib/calendarPrefs';
+
+/**
+ * ⭐ ALL IS A SELECTED STATE, ⛔ NOT THE PRIMARY CHIP (owner, 2026-09-02).
+ * The roles are the product language; "All" is what you pick when you want
+ * the combined calendar, so it sits at the end rather than leading.
+ */
+const ALL_ROLE = '__all__';
 /* ⚠ The notification panel's stylesheet, ⛔ not a copy of it — see the note
    above. `.panel`, `.row`, `.label`, `.desc`, `.switch`, `.knob`,
    `.footnote` and `.error` are the app's settings idiom and live with the
@@ -78,6 +88,8 @@ export default function CalendarScreen() {
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [row, setRow] = useState(null);
+  const [profileTypes, setProfileTypes] = useState([]);
+  const [role, setRole] = useState(ALL_ROLE);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
@@ -86,13 +98,17 @@ export default function CalendarScreen() {
     if (!userId) { setLoading(false); return; }
     let dead = false;
     (async () => {
-      const { row: r, error: err } = await fetchCalendarPrefs(userId);
+      const [{ row: r, error: err }, types] = await Promise.all([
+        fetchCalendarPrefs(userId),
+        fetchProfileTypes(userId),
+      ]);
       if (dead) return;
       /* ⚠ The table ships by migration. Until it is applied the select
          errors — say "not available yet" rather than rendering a switch
          that cannot save. A dead control is worse than an absent one. */
       if (err) setUnavailable(true);
       else setRow(r);
+      setProfileTypes(types);
       setLoading(false);
     })();
     return () => { dead = true; };
@@ -100,6 +116,14 @@ export default function CalendarScreen() {
 
   const enabled = !!row?.enabled;
   const cats = mergeCategories(row?.categories);
+  /* ⭐ The roles this account actually holds, from its PROFILES — ⛔ never
+     guessed from having been booked somewhere. */
+  const roles = rolesForAccount(profileTypes);
+  const shownRoles = role === ALL_ROLE ? roles : roles.filter(r => r.key === role);
+  /* ⚠ Honest about what a role does NOT carry. Per the data rule an
+     unsupported question is ABSENT — this says so in one line rather than
+     leaving a reader wondering where their deadlines went. */
+  const absent = ABSENT_CATEGORIES.filter(a => shownRoles.some(r => r.key === a.role));
 
   const flipMaster = async () => {
     if (busy || !userId) return;
@@ -210,23 +234,94 @@ export default function CalendarScreen() {
                   </div>
                 </div>
 
-                {/* ── what lands in it ─────────────────────────────────── */}
+                {/**
+                  * ⭐⭐ THE ROLE CHIPS. ⛔ NOT filters over one shared bucket —
+                  * each role carries its own independent configuration, and
+                  * switching chips changes WHICH configuration you are
+                  * editing. ⚠ Only roles the account actually holds appear;
+                  * the chip row is hidden entirely when there is one role,
+                  * because a single chip explains nothing.
+                  */}
+                {roles.length > 1 && (
+                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', margin: '18px 0 10px' }}>
+                    {[...roles, { key: ALL_ROLE, label: 'ALL' }].map(r => {
+                      const on = role === r.key;
+                      return (
+                        <button
+                          key={r.key}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => setRole(r.key)}
+                          style={{
+                            ...pill,
+                            color: on ? 'var(--neon2)' : 'var(--muted)',
+                            borderColor: on ? 'var(--neon2)' : 'var(--border)',
+                            background: on ? 'rgba(0,229,255,.14)' : 'none',
+                          }}
+                        >{r.label}</button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── what lands in it, grouped by the four questions ───── */}
                 <div className={s.panel}>
-                  {CALENDAR_CATEGORIES.map(c => (
-                    <div key={c.key} className={s.row}>
-                      <div className={s.rowText}>
-                        <div className={s.label}>{c.label}</div>
-                        <div className={s.desc}>{c.desc}</div>
-                      </div>
-                      <Switch
-                        on={cats[c.key]}
-                        onFlip={() => flipCategory(c.key)}
-                        disabled={busy}
-                        label={`${c.label} in your calendar`}
-                      />
-                    </div>
-                  ))}
+                  {shownRoles.map(r => {
+                    const cs = categoriesForRole(r.key);
+                    if (!cs.length) return null;
+                    return (
+                      <Fragment key={r.key}>
+                        {/* ⚠ The role only names itself in the combined view;
+                            with one role selected the chip above already
+                            said it, and repeating it is noise. */}
+                        {role === ALL_ROLE && roles.length > 1 && (
+                          <div className={s.row} style={{ paddingBottom: 4 }}>
+                            <div className={s.rowText}>
+                              <div className={s.label} style={{ color: 'var(--neon2)' }}>{r.label}</div>
+                            </div>
+                          </div>
+                        )}
+                        {cs.map(c => (
+                          <div key={c.key} className={s.row}>
+                            <div className={s.rowText}>
+                              {/* ⭐ THE QUESTION IS THE SUBHEAD, so the grammar
+                                  is visible: role → what's on / when I'm
+                                  needed / committed / waiting on me. */}
+                              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 10, letterSpacing: 1.6, color: 'var(--muted)', marginBottom: 2 }}>
+                                {QUESTIONS[c.question]}
+                              </div>
+                              <div className={s.label}>{c.label}</div>
+                              <div className={s.desc}>{c.desc}</div>
+                            </div>
+                            <Switch
+                              on={cats[c.key]}
+                              onFlip={() => flipCategory(c.key)}
+                              disabled={busy}
+                              label={`${c.label} in your calendar`}
+                            />
+                          </div>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
                 </div>
+
+                {/**
+                  * ⭐ SAYS WHAT IS ABSENT AND WHY. A host looking for
+                  * "applications closing" should learn that YesPleez has no
+                  * such date, ⛔ not be left assuming the toggle is missing.
+                  * ⚠ Per the data rule the category itself stays ABSENT —
+                  * this is a sentence, ⛔ never a disabled switch.
+                  */}
+                {absent.length > 0 && (
+                  <div className={s.footnote}>
+                    {absent.map(a => (
+                      <div key={`${a.role}-${a.question}`} style={{ marginBottom: 4 }}>
+                        <strong>{QUESTIONS[a.question]}</strong> is not in your calendar for this role. {a.why}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 

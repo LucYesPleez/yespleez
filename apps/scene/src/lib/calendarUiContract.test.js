@@ -80,6 +80,56 @@ test('⛔ master OFF preserves category choices — disable touches enabled only
   assert.ok(!disable.includes('.delete('), 'disabling must never delete the row');
 });
 
+/* ── Phase 2A · the role-aware screen ──────────────────────────────── */
+
+test('the Calendar screen renders ROLE CHIPS from held profiles, not from activity', () => {
+  const screen = src('../screens/CalendarScreen.jsx');
+  assert.ok(screen.includes('rolesForAccount(profileTypes)'), 'chips come from profile types');
+  assert.ok(screen.includes('fetchProfileTypes'), 'and those are fetched from `profiles`');
+  assert.match(screen, /aria-pressed=\{on\}/, 'chips are pressable state, not links');
+  assert.ok(screen.includes('roles.length > 1'), 'a single-role account gets no chip row');
+});
+
+test('⭐ ALL is a selected state at the END, not the primary chip', () => {
+  const screen = src('../screens/CalendarScreen.jsx');
+  assert.match(screen, /\[\.\.\.roles, \{ key: ALL_ROLE, label: 'ALL' \}\]/,
+    'ALL is appended after the real roles');
+});
+
+test('the four questions are rendered as the grammar, from the shared registry', () => {
+  const screen = src('../screens/CalendarScreen.jsx');
+  assert.ok(screen.includes('QUESTIONS[c.question]'), 'the question labels the row');
+  assert.ok(screen.includes('categoriesForRole(r.key)'), 'categories come from the registry, not a copy');
+  const feed = src('./calendarFeed.js');
+  for (const q of ['on', 'when', 'committed', 'waiting']) {
+    assert.ok(feed.includes(`${q}:`), `question ${q} declared`);
+  }
+});
+
+test('⛔ an unsupported question is ABSENT with a stated reason, never a dead toggle', () => {
+  const feed = src('./calendarFeed.js');
+  assert.ok(feed.includes('ABSENT_CATEGORIES'), 'absences are declared');
+  const screen = src('../screens/CalendarScreen.jsx');
+  assert.ok(screen.includes('absent.map'), 'and explained on screen');
+  /* the two that genuinely have no data */
+  assert.ok(/role: 'host',\s+question: 'waiting'/.test(feed));
+  assert.ok(/role: 'venue',\s+question: 'waiting'/.test(feed));
+});
+
+test('⛔ Phase 2A ships NO festival, volunteer or vendor role', () => {
+  const feed = src('./calendarFeed.js');
+  const roles = feed.slice(feed.indexOf('export const CALENDAR_ROLES'), feed.indexOf('export const CALENDAR_CATEGORIES'));
+  for (const out of ['festival', 'volunteer', 'vendor', 'workshop', 'decor']) {
+    assert.ok(!roles.includes(`'${out}'`), `${out} is out of scope for 2A`);
+  }
+});
+
+test('⛔ the feed endpoint is still the ONE subscription path', () => {
+  const fn = src('../../functions/calendar/feed.js');
+  assert.ok(fn.includes("from '../../src/lib/calendarFeed.js'"));
+  assert.ok(!fn.includes('BEGIN:V'), 'no second generator');
+});
+
 test('⛔ the host editor path (DaySlots) does not grow the control', () => {
   const daySlots = src('../screens/event/DaySlots.jsx');
   assert.ok(!daySlots.includes('onAddToCalendar'),

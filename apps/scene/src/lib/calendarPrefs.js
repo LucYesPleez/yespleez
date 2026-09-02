@@ -27,6 +27,25 @@
 import { supabase } from './supabase';
 import { mergeCategories, calendarFeedUrl, calendarWebcalUrl } from './calendarFeed';
 
+/**
+ * ⭐⭐ WHICH ROLES THIS ACCOUNT HOLDS — read from `profiles`, the canonical
+ * identity system, ⛔ NEVER inferred from activity. Having been booked once
+ * does not make somebody an artist; holding an artist profile does.
+ *
+ * ⚠ Types only, ⛔ not ids: the screen decides which CHIPS to draw, and the
+ * feed does its own profile scoping server-side inside the RPC. Nothing here
+ * is a permission.
+ */
+export async function fetchProfileTypes(userId) {
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('type')
+    .eq('user_id', userId);
+  if (error) return [];
+  return [...new Set((data || []).map(r => r.type).filter(Boolean))];
+}
+
 /** The user's calendar row, or null when none exists yet. */
 export async function fetchCalendarPrefs(userId) {
   const { data, error } = await supabase

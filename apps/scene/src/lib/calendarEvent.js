@@ -44,7 +44,8 @@
 
 import { axisOffsets, dayMidnight } from './scheduleNow';
 import { timeKey } from './schedulePortrait';
-import { buildVenue, readDate, readEndDate } from '../screens/event/eventViewModel';
+import { buildVenue, readDate, readEndDate, readClock } from '../screens/event/eventViewModel';
+import { parseClock } from '../screens/event/eventStatus';
 import { addressLines } from '../screens/event/venueDisplay';
 import { PUBLIC_ORIGIN } from './qrDestinations';
 
@@ -281,18 +282,73 @@ export function calendarEventsBySlot(resolved, { event, venueProfile = null } = 
 }
 
 /**
- * An EVENT as a whole-day calendar item — "I'm performing at this" or "I'm
- * going to this". Whole-day because the event's own start clock is the
- * schedule's business; the set projection above carries the precise times.
+ * ⭐ WHAT AN EVENT-LEVEL ITEM IS CALLED, PER ROLE. The UID kind and the
+ * summary suffix are the ONLY things that differ — one projection, four
+ * subjects, exactly the Phase 2 grammar.
  *
- * @param kind 'gig' (on the bill) or 'event' (attending) — two UIDs, so a
- *   person who stops performing but keeps attending gets a clean handover
- *   rather than one item silently changing meaning.
+ * ⛔ FOUR DISTINCT UID KINDS ON PURPOSE. Someone who stops performing but
+ * keeps attending, or sells the venue but still hosts, gets a clean handover
+ * between items rather than one item silently changing meaning.
  */
-export function eventCalendarEvent({ event, venueProfile = null, kind = 'event' } = {}) {
+const EVENT_KINDS = {
+  gig:     { uid: 'gig',     suffix: ' (performing)', note: 'You are on the bill.' },
+  hosting: { uid: 'hosting', suffix: ' (hosting)',    note: 'You are hosting this event.' },
+  venue:   { uid: 'venue',   suffix: ' (at my venue)', note: 'This is on at your venue.' },
+  event:   { uid: 'event',   suffix: '',              note: null },
+};
+
+/**
+ * An EVENT as a calendar item — "I'm performing at this", "I'm hosting this",
+ * "this is on at my venue", or "I'm going to this".
+ *
+ * Whole-day by default, because the event's own start clock is the schedule's
+ * business and the set projections carry the precise times.
+ *
+ * @param kind  one of EVENT_KINDS.
+ * @param timed ⭐ THE PUNTER'S "WHEN I'M NEEDED". Only when the organiser
+ *   actually typed a start or door time does this become a timed entry.
+ *   ⛔⛔ NO DTEND IS INVENTED: nothing in the record says when an event ENDS,
+ *   so a timed item is a point in time. ⛔ Never a guessed three hours, and
+ *   ⛔ never an "act time" — a punter's calendar states when the doors are,
+ *   not when somebody they like is on.
+ */
+export function eventCalendarEvent({ event, venueProfile = null, kind = 'event', timed = false } = {}) {
   if (!event?.id) return null;
   const cfg = event.config || {};
   const date = readDate(cfg);
+  const shape = EVENT_KINDS[kind] || EVENT_KINDS.event;
+
+  /* ⚠ The organiser's OWN start time, then doors — ⛔ never the schedule's
+     first slot. `firstSlotClock` exists for the event page's ON NOW rule and
+     is a different question from "what time should I turn up". */
+  const startMins = timed
+    ? parseClock(readClock(cfg.time, cfg.ampm) || readClock(cfg.doors, cfg.doors_ampm || cfg.ampm))
+    : null;
+  if (Number.isFinite(startMins)) {
+    const at = icsWallDateTime(date, startMins);
+    if (at) {
+      const venueT = buildVenue({ event, cfg, venueProfile });
+      const urlT = `${PUBLIC_ORIGIN}/#/event/${event.id}`;
+      return {
+        uid: icsUid(shape.uid, event.id),
+        /* ⭐ CARRIED SO THE FEED CAN DEDUPE BY EVENT. The four role kinds
+           produce four DIFFERENT uids for one night, so uid-equality alone
+           would let a person who plays at, hosts and owns the venue for the
+           same event collect three banners. ⛔ Not part of the iCalendar
+           output — the builder ignores it. */
+        eventId: event.id,
+        summary: `${event.name || 'YesPleez event'}${shape.suffix}`,
+        dtstart: at,
+        dtend: null,
+        location: venueLocation(venueT),
+        description: [shape.note, venueT.withheld ? 'Location: announced closer to the event' : null, urlT]
+          .filter(Boolean).join('\n'),
+        url: urlT,
+        sequence: sequenceFrom(event.updated_at),
+      };
+    }
+  }
+
   const dtstart = icsDate(date);
   if (!dtstart) return null;
   /* ⚠ A BACKWARDS endDate is ignored, not obeyed — same rule as eventDays:
@@ -302,21 +358,50 @@ export function eventCalendarEvent({ event, venueProfile = null, kind = 'event' 
   const lastDay = endDate && endDate >= date ? endDate : date;
   const venue = buildVenue({ event, cfg, venueProfile });
   const url = `${PUBLIC_ORIGIN}/#/event/${event.id}`;
-  const performing = kind === 'gig';
   return {
-    uid: icsUid(performing ? 'gig' : 'event', event.id),
-    summary: performing && event.name ? `${event.name} (performing)` : event.name || 'YesPleez event',
+    uid: icsUid(shape.uid, event.id),
+    eventId: event.id,
+    summary: `${event.name || 'YesPleez event'}${shape.suffix}`,
     allDay: true,
     dtstart,
     dtend: icsDate(lastDay, 1),
     location: venueLocation(venue),
     description: [
-      performing ? 'You are on the bill.' : null,
+      shape.note,
       venue.withheld ? 'Location: announced closer to the event' : null,
       url,
     ].filter(Boolean).join('\n'),
     url,
     sequence: sequenceFrom(event.updated_at),
+  };
+}
+
+/**
+ * A PERSONAL DIARY ENTRY — the user's own `personal_events` row.
+ *
+ * ⛔⛔ THIS IS THE ONE PROJECTION CARRYING FREE TEXT THE USER WROTE PRIVATELY.
+ * It reaches only the feed of the account that owns the row (the RPC scopes
+ * on `user_id`), which is the same privacy boundary My Scene already applies.
+ * ⛔ A diary row must never enter anybody else's feed, and ⛔ `is_private` is
+ * not a reason to drop it from the OWNER's own calendar — it is their diary.
+ *
+ * ⚠ Timed only when `time_start` parses; otherwise a whole-day entry. ⛔ No
+ * end time is invented — the table has none.
+ */
+export function diaryCalendarEvent({ entry } = {}) {
+  if (!entry?.id || !entry?.event_date) return null;
+  const mins = parseClock(entry.time_start);
+  const timed = Number.isFinite(mins) ? icsWallDateTime(entry.event_date, mins) : null;
+  const dtstart = timed || icsDate(entry.event_date);
+  if (!dtstart) return null;
+  return {
+    uid: icsUid('diary', entry.id),
+    summary: entry.title || 'Diary entry',
+    ...(timed ? { dtstart, dtend: null } : { allDay: true, dtstart, dtend: icsDate(entry.event_date, 1) }),
+    location: null,
+    description: entry.notes || null,
+    url: null,
+    sequence: sequenceFrom(entry.updated_at || entry.created_at),
   };
 }
 
