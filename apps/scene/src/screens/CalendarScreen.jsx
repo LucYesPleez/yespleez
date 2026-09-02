@@ -267,6 +267,21 @@ export default function CalendarScreen() {
                       </button>
                       <a href={calendarWebcalUrl(row.token)} style={pill}>OPEN IN CALENDAR APP</a>
                     </div>
+                    {/**
+                      * ⭐⭐ THE WARNING LIVES WITH THE THING IT IS ABOUT. It was
+                      * buried in a footnote at the bottom of the page, in the
+                      * same run-on sentence as two unrelated facts about the
+                      * sync switch — so the one line that matters, "this link
+                      * is a password", was the easiest to miss.
+                      *
+                      * ⚠ Said plainly, because it is not obvious: a calendar
+                      * app cannot sign in, so the token IS the credential.
+                      */}
+                    <div className={s.desc} style={{ marginTop: 2 }}>
+                      <strong style={{ color: 'var(--text)' }}>This address is a password.</strong>{' '}
+                      Anyone who has it can read your calendar without signing in, so keep it to
+                      yourself and don&rsquo;t paste it anywhere public.
+                    </div>
                   </div>
                 </div>
 
@@ -376,12 +391,12 @@ export default function CalendarScreen() {
 
             {error && <div className={s.error}>{error}</div>}
 
-            {/* States what turning sync off actually does — the calendar
-                twin of the notification panel's own footnote. */}
+            {/* ⚠ ONE IDEA. What the master switch does, and nothing else —
+                the privacy warning moved up beside the address it is about. */}
             <div className={s.footnote}>
               {enabled
-                ? 'Keep your calendar address private: anyone who has it can read this calendar. Turning sync off stops YesPleez publishing it, and your choices are kept.'
-                : 'Turning sync off stops YesPleez publishing your calendar. Your choices are kept for when you turn it back on.'}
+                ? 'Turning sync off stops YesPleez publishing your calendar, so it empties in the app you subscribed with. Nothing is deleted from YesPleez, and your choices here are kept for when you turn it back on.'
+                : 'Turning sync on gives you a private calendar address to subscribe to. Your choices are kept exactly as you left them.'}
             </div>
           </>
         )}
