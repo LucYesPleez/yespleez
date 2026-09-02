@@ -89,35 +89,53 @@ export default function EmailNotificationPreferences({ session, onState }) {
   const masterOff = disabled.has(EMAIL_MASTER);
 
   return (
-    <div className={s.panel}>
-      <div className={s.row}>
-        <div className={s.rowText}>
-          <div className={s.label}>EMAIL NOTIFICATIONS</div>
-          <div className={s.desc}>
-            Receive important YesPleez activity by email.{' '}
-            {/* ⚠ THE ADDRESS IS SHOWN, and the unconfirmed case is stated
-                plainly. `email_delivery_queue` requires email_confirmed_at, so
-                an unconfirmed account can hold preferences and still never be
-                sent to — silence that would otherwise read as a bug. */}
-            {email
-              ? (confirmed
-                  ? <>Sent to {email}.</>
-                  : <>Sent to {email} once you confirm that address.</>)
-              : 'Add an email address to your account to receive these.'}
+    <>
+      {/**
+        * ⭐⭐ THE MASTER GETS ITS OWN CARD (owner, 2026-09-02), exactly as
+        * NOTIFY THIS DEVICE does above.
+        *
+        * ⚠⚠ IT GOVERNS EVERY ROW BENEATH IT AND USED TO LOOK LIKE ONE OF
+        * THEM — same panel, same row, same switch as BOOKINGS or MESSAGES, so
+        * the one control that silences the whole channel read as a peer of the
+        * categories it silences. Standing it alone is the whole point; ⛔ do
+        * not fold it back in with the categories to save a card.
+        *
+        * ⭐ STILL THE EMAIL SECTION. Two cards, one anchor — the screen's
+        * `emailRef` wraps both, so the EMAIL chip still scrolls here.
+        */}
+      <div className={s.panel}>
+        <div className={s.row}>
+          <div className={s.rowText}>
+            <div className={s.label}>EMAIL NOTIFICATIONS</div>
+            <div className={s.desc}>
+              Receive important YesPleez activity by email.{' '}
+              {/* ⚠ THE ADDRESS IS SHOWN, and the unconfirmed case is stated
+                  plainly. `email_delivery_queue` requires email_confirmed_at, so
+                  an unconfirmed account can hold preferences and still never be
+                  sent to — silence that would otherwise read as a bug. */}
+              {email
+                ? (confirmed
+                    ? <>Sent to {email}.</>
+                    : <>Sent to {email} once you confirm that address.</>)
+                : 'Add an email address to your account to receive these.'}
+            </div>
           </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!masterOff}
+            aria-label="Email notifications"
+            className={`${s.switch}${!masterOff ? ` ${s.switchOn}` : ''}`}
+            onClick={() => toggle(EMAIL_MASTER)}
+          >
+            <span className={s.knob} />
+          </button>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={!masterOff}
-          aria-label="Email notifications"
-          className={`${s.switch}${!masterOff ? ` ${s.switchOn}` : ''}`}
-          onClick={() => toggle(EMAIL_MASTER)}
-        >
-          <span className={s.knob} />
-        </button>
       </div>
 
+      {/* ⭐ WHAT THE CHANNEL CARRIES — its own card beneath the master, the
+          same shape the in-app categories take under NOTIFY THIS DEVICE. */}
+      <div className={s.panel}>
       {/* ⭐ THE CATEGORIES STAY VISIBLE WHEN THE MASTER IS OFF, dimmed and
           inert. Hiding them would make the master switch look like it deleted
           the settings underneath, and a user turning email back on wants to see
@@ -162,6 +180,7 @@ export default function EmailNotificationPreferences({ session, onState }) {
         stops it reaching you at all, including by email. Payment and account
         emails always come through.
       </div>
-    </div>
+      </div>
+    </>
   );
 }
