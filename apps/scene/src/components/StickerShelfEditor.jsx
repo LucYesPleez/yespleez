@@ -22,7 +22,7 @@
 
 import { useEffect, useState } from 'react';
 import { assetUrl } from '../lib/profileAssetStore';
-import { renderSticker, loadStickerImage } from '../lib/stickerEffects';
+import { renderSticker, loadStickerImage, hasAlpha, PROBE_MAX } from '../lib/stickerEffects';
 import StickerEffectPicker from './StickerEffectPicker';
 
 const THUMB = 190;   // render size; displayed at 54px
@@ -45,6 +45,57 @@ export default function StickerShelfEditor({ files, accent, busy, onEffect, onRe
     })();
     return () => { alive = false; };
   }, [files.map(f => f.id).join(',')]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * ⭐⭐ THE DEFAULT SELECTION PREFERS A STICKER THAT CAN ACTUALLY TAKE AN
+   * EFFECT (owner, 2026-09-03: "the previews aren't there").
+   *
+   * ⛔ IT USED TO BE files[0], AND THAT MADE A WORKING FEATURE LOOK BROKEN.
+   * Every effect keys off the alpha channel, so landing on a flat export shows
+   * the "no transparent background" notice and no previews at all — which
+   * reads as the picker being dead rather than as this one file being
+   * unsuitable. Production shipped with `yespleezbig.png` in slot one and that
+   * is exactly what happened.
+   *
+   * ⚠ Only ever the DEFAULT. An explicit choice is never overridden, including
+   * an explicit choice of a flat file — the notice is the right answer then,
+   * because the reader asked about that file.
+   */
+  const [alphaById, setAlphaById] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const seen = {};
+      for (const f of files) {
+        const u = urls[f.id];
+        if (!u) continue;
+        try {
+          const img = await loadStickerImage(u);
+          if (!alive) return;
+          /* Bounded — the question is only "is any of this transparent", and a
+             smaller copy answers it just as well as a 4000px original. */
+          const s = Math.min(1, PROBE_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.naturalWidth * s));
+          c.height = Math.max(1, Math.round(img.naturalHeight * s));
+          const cx = c.getContext('2d');
+          cx.drawImage(img, 0, 0, c.width, c.height);
+          seen[f.id] = hasAlpha(cx.getImageData(0, 0, c.width, c.height).data);
+        } catch {
+          seen[f.id] = null;      // unreadable — neither usable nor disqualified
+        }
+      }
+      if (alive) setAlphaById(seen);
+    })();
+    return () => { alive = false; };
+  }, [urls, files]);
+
+  useEffect(() => {
+    if (selectedId) return;                       // ⛔ never override a choice
+    const usable = files.find(f => alphaById[f.id]);
+    if (usable) setSelectedId(usable.id);
+  }, [alphaById, selectedId, files]);
 
   // The selection follows the files: a removed selection falls back to the
   // first remaining sticker rather than leaving the picker pointed at nothing.
