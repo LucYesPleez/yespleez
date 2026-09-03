@@ -14,6 +14,7 @@ import DateBox from '../components/DateBox';
 import FestivalApply from './event/FestivalApply';
 import { eventCategoryBadges } from '../lib/eventBadges';
 import { eventCardImage } from '../lib/eventImage';
+import { providerFor } from '../lib/demoMixProviders';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
 import InviteSheet from '../components/InviteSheet';
@@ -1291,7 +1292,19 @@ export default function ProfileScreen() {
                   <span style={{ display: 'block', padding: 1, borderRadius: 12, marginBottom: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
                     <button className={s.mixBtn} style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
                       onClick={() => {
-                        if (mixLink.includes('soundcloud.com') || mixLink.includes('mixcloud.com')) {
+                        /* ⛔⛔ ASK THE REGISTRY, DO NOT RE-IMPLEMENT IT.
+                           This tested for soundcloud.com and mixcloud.com by
+                           hand and sent everything else to a new tab — but
+                           lib/demoMixProviders knows THREE providers, and the
+                           third is `upload`: a direct audio file or a Supabase
+                           storage object. So an act who uploaded their demo
+                           got window.open() on a raw .mp3, which is feedback
+                           #10's "weird tab opens, then it didn't play".
+
+                           ⚠ ONE matcher, in one place. A provider added to the
+                           registry has to work here without this file being
+                           touched, which is exactly what failed before. */
+                        if (providerFor(mixLink)) {
                           if (player?.url === mixLink) { setPlayer(null); } else { setPlayer({ url: mixLink, artistName: profile.name }); }
                         } else {
                           window.open(mixLink, '_blank', 'noopener');

@@ -33,16 +33,51 @@
  * existed before it.
  */
 
-/** Anything a person might paste, made into a URL we can ask about. */
+/**
+ * Anything a person might paste, made into a URL we can ask about.
+ *
+ * ⭐⭐ THE SHARE SHEET GIVES A SENTENCE, NOT A LINK. SoundCloud's copy button
+ * hands out the whole thing:
+ *
+ *   Listen to Cosmatik @ Sub Terra 2023 by Cosmatik on #SoundCloud https://on.soundcloud.com/RiYs…
+ *
+ * and that is exactly what one profile has stored. This function used to
+ * prepend `https://` to whatever it was given, so the sentence became
+ * `https://Listen to Cosmatik @ …` — a URL-shaped string that is not a URL.
+ * The widget was then handed the encoded sentence and played nothing, which is
+ * feedback #10's "then it didn't play".
+ *
+ * ⭐ AN EMBEDDED ABSOLUTE URL WINS. Extracting it is the whole fix, and it is
+ * done here rather than at the call sites because this function already exists
+ * to answer "what did this person mean" — ⛔ a second parser elsewhere is how
+ * the two would drift apart.
+ *
+ * ⛔⛔ PROSE IS NOT AN ADDRESS. "I love soundcloud.com" contains the domain and
+ * must NOT become `https://I love soundcloud.com`. Anything with whitespace
+ * and no extractable URL returns '' — unaddressable, and the caller decides
+ * what to do about it. Guessing produces a broken player that looks like a
+ * broken app.
+ */
 export function normaliseSoundcloudInput(raw) {
   const v = String(raw || '').trim();
   if (!v) return '';
-  // A bare handle, the same courtesy the social fields already extend.
-  if (!/^https?:\/\//i.test(v) && !v.includes('/') && /^[a-z0-9_-]+$/i.test(v)) {
+
+  // 1 · An absolute URL anywhere in the text is the address, wherever it sits.
+  //     ⚠ Trailing punctuation is excluded so "…/track." does not keep the dot.
+  const embedded = /https?:\/\/[^\s<>"']+/i.exec(v);
+  if (embedded) return embedded[0].replace(/[.,;:)\]]+$/, '');
+
+  // 2 · Nothing further can be rescued from prose. ⛔ Never prefix a scheme
+  //     onto something containing spaces.
+  if (/\s/.test(v)) return '';
+
+  // 3 · A bare handle, the same courtesy the social fields already extend.
+  if (!v.includes('/') && /^[a-z0-9_-]+$/i.test(v)) {
     return `https://soundcloud.com/${v}`;
   }
-  if (!/^https?:\/\//i.test(v)) return `https://${v}`;
-  return v;
+
+  // 4 · A schemeless address — soundcloud.com/someone/a-set.
+  return `https://${v}`;
 }
 
 /** Is this a SoundCloud address at all — including the share domain? */

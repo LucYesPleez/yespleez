@@ -148,3 +148,56 @@ test('embed urls are built per provider, and an upload plays its own url', () =>
   assert.match(providerById('mixcloud').embedUrl('https://www.mixcloud.com/a/b/'), /widget\/iframe/);
   assert.equal(providerById('upload').embedUrl('https://storage.example/x.mp3'), 'https://storage.example/x.mp3');
 });
+
+/* ── what actually reaches the player · feedback #10 ───────────────── */
+
+const SC = PROVIDERS.find(p => p.id === 'soundcloud');
+
+/** The exact value stored on the Cosmatik profile, byte for byte. */
+const COSMATIK_SHARE_TEXT =
+  'Listen to Cosmatik @ Sub Terra 2023 by Cosmatik on #SoundCloud https://on.soundcloud.com/RiYsQ3kiKVMkPrhjdQ';
+
+/** What the widget is actually asked to load. */
+const embedded = url => decodeURIComponent(/[?&]url=([^&]+)/.exec(SC.embedUrl(url))[1]);
+
+test('⭐⭐ THE EMBED CARRIES THE URL, NOT THE SENTENCE — the #10 failure', () => {
+  // Before: ?url=Listen%20to%20Cosmatik%20%40%20Sub%20Terra%202023%20…
+  assert.equal(embedded(COSMATIK_SHARE_TEXT), 'https://on.soundcloud.com/RiYsQ3kiKVMkPrhjdQ');
+});
+
+test('⛔ REGRESSION — no whitespace may survive into the player URL', () => {
+  const inner = embedded(COSMATIK_SHARE_TEXT);
+  assert.ok(!/\s/.test(inner), `the player was handed "${inner.slice(0, 40)}…"`);
+  assert.ok(!inner.startsWith('https://Listen'), 'the sentence reached the player');
+});
+
+test('⛔⛔ PROSE MENTIONING THE DOMAIN IS NOT A PROVIDER MATCH', () => {
+  // Otherwise it opens a player that can never load anything.
+  assert.equal(providerFor('I love soundcloud.com so much'), null);
+  assert.equal(providerFor('check out my soundcloud.com page'), null);
+});
+
+test('the share text still MATCHES — it does own a real link', () => {
+  assert.equal(providerFor(COSMATIK_SHARE_TEXT)?.id, 'soundcloud');
+});
+
+test('every shape that worked before still works', () => {
+  assert.equal(providerFor('https://soundcloud.com/luc-bruen/dragon-24')?.id, 'soundcloud');
+  assert.equal(providerFor('https://on.soundcloud.com/d9H1MbeRsJFLkSOqjg')?.id, 'soundcloud');
+  assert.equal(providerFor('https://www.mixcloud.com/someone/a-set/')?.id, 'mixcloud');
+  assert.equal(embedded('https://soundcloud.com/a/b'), 'https://soundcloud.com/a/b');
+});
+
+test('⚠ UPLOADED AUDIO HAS A PROVIDER, though no demo mix uses one today', () => {
+  // Checked against production: 7 mix_link values, 6 soundcloud and 1 YouTube.
+  // Nothing exercises this path yet, so it is covered here rather than assumed.
+  assert.equal(providerFor('https://x.supabase.co/storage/v1/object/sign/d/mix.mp3')?.id, 'upload');
+  assert.equal(providerFor('https://example.com/set.mp3')?.id, 'upload');
+});
+
+test('⛔ A LINK WITH NO IN-APP SURFACE STILL HAS NO PROVIDER', () => {
+  // One real profile stores a YouTube link; opening it in a tab is correct.
+  assert.equal(providerFor('https://youtube.com/watch?v=abc123'), null);
+  assert.equal(providerFor(''), null);
+  assert.equal(providerFor(null), null);
+});
