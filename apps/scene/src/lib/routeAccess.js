@@ -100,7 +100,13 @@ export const ROUTE_ACCESS = Object.freeze({
   '/profile-edit':            { access: ACCESS.ACCOUNT },
   '/role-select':             { access: ACCESS.ACCOUNT },
   '/create-event':            { access: ACCESS.ACCOUNT },
-  '/beta-feedback':           { access: ACCESS.ACCOUNT },
+  /* ⭐ PUBLIC SINCE 2026-09-03. Feedback is not participation — the person
+     most worth hearing from is often the one who bounced off before signing
+     up, and refusing them silently is what feedback #24 reported. A guest
+     writes a row with a NULL user_id and no attachments (enforced by RLS, not
+     by the client); a signed-in user is unchanged and still gets a reference
+     number back. */
+  '/beta-feedback':           { access: ACCESS.PUBLIC },
   '/industry/artist':         { access: ACCESS.ACCOUNT },
   '/industry/artist/setup':   { access: ACCESS.ACCOUNT },
   '/industry/venue':          { access: ACCESS.ACCOUNT },
