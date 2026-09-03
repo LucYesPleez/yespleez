@@ -1600,9 +1600,13 @@ export default function ProfileScreen() {
                 : <button
                     onClick={() => setClaimOpen(true)}
                     style={{
-                      background: 'rgba(255,184,48,.09)',
-                      border: '1px solid rgba(255,184,48,.36)',
-                      borderRadius: 999,
+                      /* ⚠ NO CHIP — no border, no fill, no pill (owner,
+                         2026-09-03: "remove the border of the is this you
+                         chip, keep the text as is"). The gold text carries it;
+                         the outline made an invitation look like a status
+                         badge, which is what the row above it actually is. */
+                      background: 'none',
+                      border: 'none',
                       color: '#FFB830',
                       fontSize: 14,
                       fontWeight: 700,

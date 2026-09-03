@@ -159,6 +159,21 @@
   margin: 0 auto;
   padding: 0 16px;
   background: #0a0a0f;
+  /* ⛔⛔ `flow-root` IS LOAD-BEARING — IT IS THE FIX FOR THE GAP IN THE FADE.
+     There is no top padding or border here, so the FIRST CHILD'S margin-top
+     COLLAPSES OUT THROUGH this box: the element moves down and takes the solid
+     background with it, leaving an unpainted strip where the fixed hero shows
+     through as a bright band under the name.
+
+     Measured on the unclaimed Bellingen Golf Club profile: .nameBlock ended at
+     679.5 and .cards began at 683.5, a 4px gap from a 4px child margin.
+
+     ⚠ IT SHOWS UP ON UNCLAIMED PROFILES because their first card is the one
+     with that margin; a claimed profile happens to lead with a different
+     element and hides the same bug. ⛔ Do not "fix" this by adding padding-top
+     — that changes the spacing. flow-root establishes a block formatting
+     context, so the margin stays inside the painted box where it belongs. */
+  display: flow-root;
 }
 
 .tagline {
