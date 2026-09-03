@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { rawStatusesFor } from '../lib/enquiryUtils';
 import { getPersonalProfileId, getOwnerProfiles } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
@@ -794,7 +795,26 @@ export default function ProfileScreen() {
         aboutProfileId: enquiryProf.id ?? null,
         type:    'availability_request',
         message: `${enquiryProf.name} enquired about ${new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}.`,
-        data:    { enquiry_id: inserted.id, date_requested: pickerDate, venue_name: profile.name || null },
+        /**
+         * ⭐⭐ `recipient_type` IS WHAT MAKES THIS ROW CLICKABLE.
+         *
+         * ⛔⛔ EVERY AVAILABILITY NOTICE WAS INERT. `notifDestination` sends an
+         * enquiry decision to the READER'S OWN dashboard, and each profile type
+         * has its own path — but the only type in the payload was the
+         * applicant's, which is the wrong side for this notice: the reader here
+         * RECEIVED the ask. With no event to fall back on, the row resolved to
+         * null and tapping it did nothing.
+         *
+         * ⛔ NOT DERIVED FROM `to_profile_id` AT READ TIME. `notifDestination`
+         * is pure — it answers from the row alone, which is what lets every
+         * surface agree about where a notice leads. The record states the
+         * identity; it does not compute one beside it.
+         *
+         * ⚠ `profile` IS THE RECIPIENT here — the profile being enquired about,
+         * not the asker. ⛔ Enquiring is universal (an act receives these too),
+         * so this must never be hard-coded to 'venue'.
+         */
+        data:    { enquiry_id: inserted.id, date_requested: pickerDate, venue_name: profile.name || null, recipient_type: profile.type || null },
       });
     }
     // Only ever reached on a real success — every failure returned above.
@@ -1466,9 +1486,30 @@ export default function ProfileScreen() {
                          the grid only paints dots on days it draws anyway.
                          ⛔ Guarded on a session — a guest has no enquiries and
                          `applicant_user_id.eq.undefined` is a 400. */
+                      /**
+                       * ⛔⛔ A WITHDRAWN ASK IS NOT AN ASK. This query had NO
+                       * status filter, so every enquiry ever sent dotted its
+                       * date forever — cancelled ones included. Cancel both
+                       * enquiries for a date and the calendar still said YOU
+                       * ENQUIRED, which is the one thing that dot must not do:
+                       * it exists to stop you asking twice, and here it was
+                       * blocking a date you had deliberately freed up.
+                       *
+                       * ⭐ THE LIVE STATUSES ARE DERIVED, ⛔ never hand-listed.
+                       * `rawStatusesFor` reads the same map `normaliseStatus`
+                       * does, so a status added later cannot quietly fall
+                       * outside this filter — the exact drift a typed-out
+                       * list produces. Settled buckets (declined, which is
+                       * where `cancelled` files) are simply not asked for.
+                       */
                       session?.user?.id
                         ? supabase.from('venue_enquiries').select('date_requested')
                             .eq('venue_user_id', profile.user_id).eq('applicant_user_id', session.user.id)
+                            .in('status', [
+                              ...rawStatusesFor('awaiting',   'outgoing'),
+                              ...rawStatusesFor('interested', 'outgoing'),
+                              ...rawStatusesFor('accepted',   'outgoing'),
+                            ])
                         : Promise.resolve({ data: [] }),
                     ]);
                     setAvailDates(new Set((availRes.data || []).map(r => r.available_date)));
@@ -1559,9 +1600,13 @@ export default function ProfileScreen() {
                 : <button
                     onClick={() => setClaimOpen(true)}
                     style={{
-                      background: 'rgba(255,184,48,.09)',
-                      border: '1px solid rgba(255,184,48,.36)',
-                      borderRadius: 999,
+                      /* ⚠ NO CHIP — no border, no fill, no pill (owner,
+                         2026-09-03: "remove the border of the is this you
+                         chip, keep the text as is"). The gold text carries it;
+                         the outline made an invitation look like a status
+                         badge, which is what the row above it actually is. */
+                      background: 'none',
+                      border: 'none',
                       color: '#FFB830',
                       fontSize: 14,
                       fontWeight: 700,
