@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { PROFILE_ASSET_TYPES, isMulti } from '@yespleez/requirements';
-import { listAssets, uploadAsset, deleteAsset, assetUrl, validateAssetFile } from '../lib/profileAssetStore';
+import { PROFILE_ASSET_TYPES, isMulti, isDistributable } from '@yespleez/requirements';
+import { listAssets, uploadAsset, deleteAsset, assetUrl, validateAssetFile, setStickerEffect } from '../lib/profileAssetStore';
+import StickerShelfEditor from './StickerShelfEditor';
 
 /**
  * PROFESSIONAL ASSETS — the reusable document library.
@@ -115,6 +116,28 @@ export default function ProfileAssetsSection({
     }
   }
 
+  /**
+   * ⚠ OPTIMISTIC, deliberately. The effect is a string on a row and the
+   * previews are already rendered locally, so the chosen option can light up
+   * on the tap it was tapped. Waiting for a round trip to move a selection the
+   * user can already see the result of reads as lag, not as safety.
+   * On failure the state is put back and the reason is shown — ⛔ a silent
+   * revert would look like the tap missed.
+   */
+  async function onEffect(asset, effectKey) {
+    if (!asset?.id) return;
+    const previous = asset.sticker_effect || 'NONE';
+    setAssets(list => (list || []).map(a =>
+      a.id === asset.id ? { ...a, sticker_effect: effectKey === 'NONE' ? null : effectKey } : a));
+    try {
+      await setStickerEffect(asset.id, effectKey);
+    } catch (e) {
+      setAssets(list => (list || []).map(a =>
+        a.id === asset.id ? { ...a, sticker_effect: previous === 'NONE' ? null : previous } : a));
+      setErr(e?.message || 'Could not change that effect.');
+    }
+  }
+
   const held = assets || [];
   const filledTypes = new Set(held.map(a => a.asset_type));
 
@@ -180,6 +203,7 @@ export default function ProfileAssetsSection({
             accentRgb={rgb}
             onPick={f => onPick(t.key, f)}
             onRemove={onRemove}
+            onEffect={onEffect}
           />
         ))}
 
@@ -306,11 +330,18 @@ function MoreRow({ remaining, heldRemaining, accent, accent2, onClick }) {
   );
 }
 
-function AssetRow({ type, files, loading, busy, accent, accentRgb, onPick, onRemove }) {
+function AssetRow({ type, files, loading, busy, accent, accentRgb, onPick, onRemove, onEffect }) {
   const inputRef = useRef(null);
   const [hov, setHov] = useState(false);
   const has = files.length > 0;
   const multi = isMulti(type.key);
+
+  /* ⭐ THE SHELF FOLLOWS THE PRIVACY FLAG, not the type key. A distributable
+     asset is one that appears on public event pages, and that is precisely the
+     set for which a sticker effect means anything — see the same reasoning on
+     the "leaves your profile" line above. Add a second distributable type and
+     it gets the shelf without this file being touched. */
+  const stickerRow = isDistributable(type.key) && has;
 
   async function view(asset) {
     const url = await assetUrl(asset.storage_path);
@@ -325,13 +356,18 @@ function AssetRow({ type, files, loading, busy, accent, accentRgb, onPick, onRem
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 10,
+        /* ⚠ A COLUMN NOW, because the sticker picker sits UNDER the row rather
+           than in it: the previews are 56px tiles and squeezing four of them
+           into the control strip would push the filename out. Every other row
+           has a single child and lays out exactly as it always did. */
+        display: 'flex', flexDirection: 'column',
         padding: '10px 12px', borderRadius: 8,
         background: 'var(--card2)',
         border: `1px solid ${has ? `rgba(${accentRgb},.35)` : 'var(--border)'}`,
         transition: 'border-color .15s',
       }}
     >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.2, color: has ? accent : 'var(--text)' }}>
           {type.label}
@@ -340,14 +376,46 @@ function AssetRow({ type, files, loading, busy, accent, accentRgb, onPick, onRem
           {loading
             ? '…'
             : has
-              ? files.map(f => f.file_name).join(' · ')
+              /* ⚠ A COUNT FOR THE STICKER ROW, NOT A LIST OF NAMES. The
+                 thumbnails below say which files are held far better than
+                 "yespleezbig.png · IMG_4398.png · …" ever did, and the names
+                 were being truncated into meaninglessness anyway. */
+              ? (stickerRow
+                  ? `${files.length} sticker${files.length === 1 ? '' : 's'}`
+                  : files.map(f => f.file_name).join(' · '))
               /* Plain language — never the engine's word for it. */
               : 'Not provided'}
         </div>
+
+        {/* ⭐ WHAT A STICKER IS, SAID WHERE IT IS UPLOADED (owner, 2026-09-02).
+            The logos here become the sticker shelf on every event the profile
+            appears on, and nobody could have known that: the upload row said
+            only "Not provided". A reason to upload belongs at the upload, not
+            on the event page where only the collector ever reads it.
+
+            ⚠ KEYED ON `isDistributable`, ⛔ NOT on the label or the key. The
+            sentence is true BECAUSE the type is world-readable, so the copy
+            and the privacy boundary cannot drift apart: make a second type
+            distributable and it inherits this line, which is exactly the
+            warning its owner should see.
+
+            ⚠ ENDS ON THE LIMIT, deliberately — every privacy statement in
+            this app names what it does NOT reach. */}
+        {isDistributable(type.key) && (
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3, whiteSpace: 'normal', lineHeight: 1.4 }}>
+            Goes on the events you are on, for anyone to save. It is the only
+            file here that leaves your profile.
+          </div>
+        )}
       </div>
 
-      {has && <RowBtn label="VIEW" onClick={() => view(files[0])} accent={accent} />}
-      {has && <RowBtn label="REMOVE" onClick={() => onRemove(files[0])} accent="var(--muted)" disabled={busy} />}
+      {/* ⛔ NOT ON THE STICKER ROW. Both of these act on `files[0]`, which is
+          meaningless once the row holds several stickers — REMOVE would delete
+          a file the owner was not looking at. The shelf below owns viewing
+          (the thumbnails ARE the view) and removing (scoped to the selected
+          sticker). */}
+      {has && !stickerRow && <RowBtn label="VIEW" onClick={() => view(files[0])} accent={accent} />}
+      {has && !stickerRow && <RowBtn label="REMOVE" onClick={() => onRemove(files[0])} accent="var(--muted)" disabled={busy} />}
 
       <input
         ref={inputRef}
@@ -362,6 +430,20 @@ function AssetRow({ type, files, loading, busy, accent, accentRgb, onPick, onRem
         accent={hov ? accent : 'var(--muted)'}
         disabled={busy}
       />
+      </div>
+
+      {/* ⛔ ONLY WHEN THERE IS ARTWORK TO SHOW. The shelf is thumbnails of the
+          owner's own stickers; with no files there is nothing to preview and a
+          row of empty frames would be a worse answer than no shelf at all. */}
+      {stickerRow && (
+        <StickerShelfEditor
+          files={files}
+          accent={accent}
+          busy={busy}
+          onEffect={onEffect}
+          onRemove={onRemove}
+        />
+      )}
     </div>
   );
 }

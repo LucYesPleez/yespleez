@@ -50,6 +50,19 @@
  * LOGO_PACK alone, deliberately (owner, 2026-08-02). A logo pack exists to be
  * distributed — that is what it IS. Promo photos are the obvious next
  * candidate and are deliberately NOT included yet.
+ *
+ * ⚠ LOGO_PACK IS CALLED "STICKERS / LOGOS" EVERYWHERE A PERSON CAN READ IT
+ * (owner, 2026-09-02): the logos an act uploads here are the things collected
+ * off an event page. ⛔ The KEY stays LOGO_PACK forever — it is stored in
+ * `profile_assets.asset_type` and in opportunity requirement lists, and the
+ * PA2 RLS policies name it. Only `label` moved, which is exactly the edit
+ * this list's contract allows.
+ *
+ * ⭐ BOTH WORDS, DELIBERATELY. "Stickers" alone names what the file BECOMES
+ * on an event page but not what to upload, so nobody would know a logo goes
+ * here; "Logos" alone names the file but not why anyone would bother. The
+ * pair is the only version that answers both, and it is the owner's own
+ * idiom for a row that covers two readings (cf. "bands / solo").
  */
 export const PROFILE_ASSET_TYPES = [
   { key: 'PRESS_KIT',         label: 'Press Kit',         cardinality: 'single' },
@@ -58,7 +71,7 @@ export const PROFILE_ASSET_TYPES = [
   { key: 'HOSPITALITY_RIDER', label: 'Hospitality Rider', cardinality: 'single' },
   { key: 'PUBLIC_LIABILITY',  label: 'Public Liability',  cardinality: 'single' },
   { key: 'PROMO_PHOTOS',      label: 'Promo Photos',      cardinality: 'many'   },
-  { key: 'LOGO_PACK',         label: 'Logo Pack',         cardinality: 'many', distributable: true },
+  { key: 'LOGO_PACK',         label: 'Stickers / Logos',  cardinality: 'many', distributable: true },
   { key: 'MEDIA_KIT',         label: 'Media Kit',         cardinality: 'single' },
   { key: 'OTHER',             label: 'Other',             cardinality: 'many'   },
 ];

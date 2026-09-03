@@ -350,18 +350,44 @@
   color: #12061f;
 }
 
-/* ── Collectables — the official images and stickers under the poster ──
+/* ── STICKERS — the logos of everyone on this event, under the poster ──
    A grid rather than a rail: these are a set to browse, not a sequence to
    scroll, and a rail would hide half of them behind a swipe. */
+
+/* The shelf's own name, subordinate to OFFICIAL POSTER rather than a peer of
+   it: this sits inside that section, it does not start a new one.
+
+   ⚠ `font-weight: 400` IS LOAD-BEARING. Bebas Neue ships one weight, and an
+   <h3> would faux-bold it — the type stops matching every other heading in
+   the app and looks subtly broken rather than obviously wrong. */
+.subHeading {
+  margin: 16px 0 9px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
 .collectables {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: 8px;
 }
 
+/* ⚠ A <button> SINCE 2026-09-03, not an <a>: saving renders a blob rather than
+   following a link (see EventPoster's StickerTile). `padding: 0` and
+   `width: 100%` are the button reset — without them the browser's own padding
+   insets the artwork and the cell stops being square. `font: inherit` keeps the
+   SAVE label matching the rest of the shelf rather than falling back to the
+   platform button font. */
 .collectable {
   position: relative;
   display: block;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  color: inherit;
   aspect-ratio: 1;
   border-radius: 10px;
   overflow: hidden;

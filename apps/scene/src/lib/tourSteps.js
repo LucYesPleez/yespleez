@@ -358,19 +358,31 @@ export const TOUR_STEPS = [
     Demo: MessagesChatDemo,
     title: 'Messages',
     /**
-     * ⚠ THE THIRD LINE PROMISES PHONE DISCOVERY, which is designed and
-     * cleared to build but not shipped. Onboarding is the worst place for a
-     * feature that is not there yet: it is read once, on first launch, by
-     * someone forming their model of what the app does — and the first thing
-     * they will try is texting a friend who has no account.
+     * ⚠ THE PHONE DISCOVERY LINE IS GONE (owner, 2026-09-02). It read "even
+     * your friends don't need a YesPleez account, just their phone number",
+     * which promised a feature that is designed but not shipped, on the one
+     * screen that is read once on first launch. The warning that used to sit
+     * here called it: this was the line to pull.
      *
-     * Owner's call, made knowingly. If Phone Discovery slips past the beta,
-     * this line is the one to pull.
+     * What replaced it is true today. Messaging is not gated on an industry
+     * role, so having no role is not a reason to skip the tab; and holding
+     * someone's number is what lets a conversation be opened, which is the
+     * reassurance rather than the feature.
+     *
+     * ⛔ Do not restore the old line if Phone Discovery ships. Reaching a
+     * friend who has no account is a different claim from who may contact
+     * you, and the tour is not where a new capability gets announced.
+     *
+     * ⚠ STILL FOUR PARAGRAPHS, AND THAT IS THE CONSTRAINT. The card is
+     * bottom-anchored with no max-height, so every paragraph grows it off
+     * the spotlight; the 640px block in TourOverlay.module.css exists to get
+     * this card from 44% of a 375x812 phone down to 31%. Both facts said in
+     * one line rather than two is what keeps that measurement.
      */
     body: [
       'One messenger for your entire music scene.',
       'Talk direct to artists, venues, promoters.',
-      "Even your friends don't need a YesPleez account, just their phone number.",
+      'No industry role needed to chat, and only people who have your number can start one.',
       'Everything stays together in one place.',
     ],
     card: 'bottom',

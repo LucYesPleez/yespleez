@@ -72,6 +72,11 @@ export const ROUTE_ACCESS = Object.freeze({
      here" to a sign-in wall, which answers a question they did not ask. */
   '*':                        { access: ACCESS.PUBLIC },
   '/dev/event-layout':        { access: ACCESS.PUBLIC, devOnly: true },
+  /* The sticker effects harness. PUBLIC and devOnly for the same reason as the
+     layout harness above: it renders bundled artwork and whatever file the
+     developer drops in, reads nothing from the database, and is not routed in
+     a production build at all. */
+  '/dev/stickers':            { access: ACCESS.PUBLIC, devOnly: true },
   /* S3 · the public schedule projection, against real production rows. PUBLIC
      because it renders exactly what a signed-out punter may read — that is the
      point of it — and it writes nothing. */
