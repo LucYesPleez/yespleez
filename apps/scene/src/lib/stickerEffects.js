@@ -160,20 +160,24 @@ export const PROBE_MAX = 512;
  *
  * ⭐⭐ THE RULE, STATED BY THE OWNER (2026-09-03): "the background and outline
  * need to be opposite contrast of the white of the logo. If it was any other
- * colour the outline would be white." So the rim follows the SAME contrast
- * decision as the body — both are the ground the logo is read against, and
- * they move together. ⛔ My earlier note here claimed the opposite (that a rim
- * should be one fixed colour regardless of logo) and was wrong.
+ * colour the outline would be white." The rim follows the SAME contrast
+ * decision as the body — both are the ground the logo is read against, so they
+ * move together. A white logo gets a dark body and a black rim; anything
+ * darker gets a white body and a white rim.
  *
- * ⚠⚠ THIS CONSTANT ONLY IMPLEMENTS HALF OF THAT RULE. It is correct for a
- * white or light logo, which is the case that was reviewed and approved. A
- * DARK logo currently gets a black rim on a white body, where the rule says it
- * should get a white one. The fix is to take the rim from `contrastFill` the
- * way the body does — deliberately not done yet because the approved output
- * was not going to be changed unreviewed. ⛔ Do not ship the effects to a
- * profile with a dark logo until this is closed.
+ * ⛔ NOT A CONSTANT. It was one, and that shipped a black rim onto every dark
+ * logo — correct for the light case that had been reviewed and wrong for
+ * everything else.
+ *
+ * ⚠ THE DARK PAIR IS NOT IDENTICAL: the body is #14141c and the rim is pure
+ * black, so the rim reads as an edge against the body rather than vanishing
+ * into it. There is no equivalent trick on the light side — nothing is whiter
+ * than white — so a dark logo's rim and body are the same colour and the
+ * sticker is simply one white backing. That asymmetry is deliberate.
  */
-export const BAND_COLOUR = '#000000';
+export function rimColourFor(artworkIsLight) {
+  return artworkIsLight ? '#000000' : '#ffffff';
+}
 
 /**
  * What colour to fill the sticker's interior with.
@@ -385,7 +389,7 @@ export function renderSticker(img, effectKey, { make, size, width, height, padSc
     const probe = makeCanvas(
       Math.max(1, Math.round(sw * scale)), Math.max(1, Math.round(sh * scale)));
     probe.getContext('2d').drawImage(img, 0, 0, probe.width, probe.height);
-    const { color: fillColour } = contrastFill(
+    const { color: fillColour, artworkIsLight } = contrastFill(
       probe.getContext('2d').getImageData(0, 0, probe.width, probe.height).data);
     const [fr, fg, fb] = hexToRgb(fillColour);
 
@@ -403,7 +407,8 @@ export function renderSticker(img, effectKey, { make, size, width, height, padSc
     body.getContext('2d').putImageData(art, 0, 0);
 
     /* 2 · THE BAND, around the body. */
-    const rim = silhouette(body, out.width, out.height, makeCanvas, BAND_COLOUR);
+    const rim = silhouette(body, out.width, out.height, makeCanvas,
+      rimColourFor(artworkIsLight));
     for (const [dx, dy] of dilationOffsets(pad)) {
       ctx.drawImage(rim, dx, dy);
     }

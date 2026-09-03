@@ -15,6 +15,7 @@ import {
   STICKER_EFFECTS, STICKER_EFFECT_KEYS, DEFAULT_STICKER_EFFECT,
   effectByKey, isStickerEffect, effectPadding,
   hasAlpha, dilationOffsets, metallicStops, enclosedRegions,
+  contrastFill, rimColourFor, hexToRgb,
 } from './stickerEffects.js';
 
 /* ── the stored contract ───────────────────────────────────────────── */
@@ -272,4 +273,56 @@ test('a large field does not blow the stack — the flood is iterative', () => {
 test('malformed input returns an empty mask rather than throwing', () => {
   assert.equal(enclosedRegions(null, 4, 4).length, 16);
   assert.equal(enclosedRegions(new Uint8ClampedArray(0), 0, 0).length, 0);
+});
+
+/* ── the rim colour ────────────────────────────────────────────────── */
+
+test('⭐⭐ THE RULE — background and rim sit opposite the logo, together', () => {
+  // Owner, 2026-09-03: "the background and outline need to be opposite
+  // contrast of the white of the logo. If it was any other colour the outline
+  // would be white."
+  assert.equal(rimColourFor(true), '#000000', 'a light logo needs a dark rim');
+  assert.equal(rimColourFor(false), '#ffffff', 'anything darker needs a white rim');
+});
+
+test('⛔ REGRESSION — the rim was a constant, and shipped black onto dark logos', () => {
+  assert.notEqual(rimColourFor(true), rimColourFor(false),
+    'the rim is not responding to the artwork at all');
+});
+
+test('a white logo is read as light, so it gets the dark pair', () => {
+  const d = new Uint8ClampedArray(400);
+  for (let i = 0; i < 100; i++) {
+    d[i * 4] = 251; d[i * 4 + 1] = 252; d[i * 4 + 2] = 251; d[i * 4 + 3] = 255;
+  }
+  const { artworkIsLight, color } = contrastFill(d);
+  assert.equal(artworkIsLight, true);
+  assert.equal(color, '#14141c');
+  assert.equal(rimColourFor(artworkIsLight), '#000000');
+});
+
+test('a near-black logo is read as dark, so it gets the white pair', () => {
+  const d = new Uint8ClampedArray(400);
+  for (let i = 0; i < 100; i++) {
+    d[i * 4] = 25; d[i * 4 + 1] = 25; d[i * 4 + 2] = 30; d[i * 4 + 3] = 255;
+  }
+  const { artworkIsLight, color } = contrastFill(d);
+  assert.equal(artworkIsLight, false);
+  assert.equal(color, '#ffffff');
+  assert.equal(rimColourFor(artworkIsLight), '#ffffff');
+});
+
+test('⚠ THE DARK PAIR DIFFERS, THE LIGHT PAIR DOES NOT — and that is deliberate', () => {
+  // Body #14141c against a pure black rim reads as an edge. Nothing is whiter
+  // than white, so a dark logo's rim and body are simply one white backing.
+  assert.notEqual(rimColourFor(true), '#14141c', 'the dark rim should read against the body');
+  assert.equal(rimColourFor(false), '#ffffff');
+});
+
+test('the rim colour is always a parseable hex', () => {
+  for (const light of [true, false]) {
+    const rgb = hexToRgb(rimColourFor(light));
+    assert.equal(rgb.length, 3);
+    for (const v of rgb) assert.ok(Number.isInteger(v) && v >= 0 && v <= 255);
+  }
 });
