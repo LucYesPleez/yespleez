@@ -82,15 +82,30 @@ export default function BetaFeedbackScreen() {
     setFiles(prev => prev.filter((_, i) => i !== index));
   }
 
+  /**
+   * ⭐⭐ A GUEST MAY LEAVE FEEDBACK (owner, 2026-09-03). Feedback #24, "guest
+   * sign in didnt save feedback", was accurate: this used to open with
+   * `if (!userId ...) return`, a SILENT return with no error and no message.
+   * A guest filled in the form, pressed send, and nothing happened at all.
+   *
+   * ⭐ The person most worth hearing from is the one who bounced off before
+   * signing up, so the answer is to accept it rather than to explain the
+   * refusal better.
+   *
+   * ⛔ TEXT ONLY FOR GUESTS. Attachments would need an anon INSERT policy on a
+   * private 100MB storage bucket with no user id to attribute or rate-limit
+   * by — an obvious abuse vector for an open form. The RLS policy enforces
+   * `attachment_paths = '{}'` for anon rather than trusting this code.
+   */
   async function send() {
-    if (!userId || sending) return;
+    if (sending) return;
     setSending(true);
     setSendErr('');
 
     // Upload first, insert second — an attachment failure must not leave a
     // feedback row pointing at a file that was never actually written.
     const attachmentPaths = [];
-    for (const file of files) {
+    for (const file of userId ? files : []) {
       const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
       const path = `${userId}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from(BUCKET)
@@ -103,21 +118,30 @@ export default function BetaFeedbackScreen() {
       attachmentPaths.push(path);
     }
 
-    const { data, error } = await supabase.from('beta_feedback').insert({
-      user_id: userId,
+    const row = {
+      user_id: userId ?? null,
       type,
       area,
       severity: type === 'BUG' ? severity : null,
       description: description.trim(),
       attachment_paths: attachmentPaths,
-    }).select('id').single();
+    };
+
+    /* ⛔⛔ NO `.select()` WITHOUT A SELECT POLICY — THE beta_feedback LESSON.
+       There is an INSERT policy for anon and deliberately no SELECT one, so
+       reading the row back as a guest fails AFTER the insert has already
+       succeeded. That would show "send failed" over feedback that saved
+       perfectly, and the writer would send it again. A signed-in user can read
+       their own row, so they still get a reference number. */
+    const q = supabase.from('beta_feedback').insert(row);
+    const { data, error } = userId ? await q.select('id').single() : await q;
 
     setSending(false);
     if (error) {
       setSendErr('Send failed — ' + (error.message || 'unknown error'));
       return;
     }
-    setFeedbackId(data.id);
+    setFeedbackId(data?.id ?? null);
     setPhase('success');
   }
 
@@ -141,6 +165,7 @@ export default function BetaFeedbackScreen() {
       {phase === 'attachments' && (
         <AttachmentsPhase
           files={files}
+          isGuest={!userId}
           onAddScreenshot={() => openFilePicker('image/*')}
           onAddRecording={() => openFilePicker('video/*')}
           onRemoveFile={removeFile}
@@ -270,23 +295,35 @@ function DetailsPhase({ type, setType, area, setArea, severity, setSeverity, des
   );
 }
 
-function AttachmentsPhase({ files, onAddScreenshot, onAddRecording, onRemoveFile, onSend, sending, sendErr }) {
+function AttachmentsPhase({ files, isGuest, onAddScreenshot, onAddRecording, onRemoveFile, onSend, sending, sendErr }) {
   return (
     <>
       <p className={s.progressCue}>Page 2/2</p>
       <p className={s.stepLabel}>Attachments <span className={s.hint}>(optional)</span></p>
       <p className={s.attachmentsCopy}>Screenshots and screen recordings help us understand exactly what happened.</p>
 
-      <div className={s.attachActions}>
-        <button type="button" className={s.secondaryBtn} onClick={onAddScreenshot}>
-          ＋ &nbsp; Add Screenshot
-          <small>Attach an image from your device</small>
-        </button>
-        <button type="button" className={s.secondaryBtn} onClick={onAddRecording}>
-          ＋ &nbsp; Add Screen Recording
-          <small>Attach a video from your device</small>
-        </button>
-      </div>
+      {/* ⛔ A GUEST IS NOT OFFERED A PICKER THAT WOULD DROP THE FILE. Guests can
+          send feedback but not attachments, so showing the buttons would take
+          a screen recording and quietly discard it on send — the same silent
+          failure this whole change exists to remove. Say so instead, and end
+          on what they CAN do. */}
+      {isGuest ? (
+        <p className={s.attachmentsCopy}>
+          Attachments need an account, so this one goes without. Your feedback still
+          reaches us and is still read.
+        </p>
+      ) : (
+        <div className={s.attachActions}>
+          <button type="button" className={s.secondaryBtn} onClick={onAddScreenshot}>
+            ＋ &nbsp; Add Screenshot
+            <small>Attach an image from your device</small>
+          </button>
+          <button type="button" className={s.secondaryBtn} onClick={onAddRecording}>
+            ＋ &nbsp; Add Screen Recording
+            <small>Attach a video from your device</small>
+          </button>
+        </div>
+      )}
 
       {files.length > 0 && (
         <div className={s.fileList}>
@@ -318,10 +355,16 @@ function SuccessPhase({ feedbackId, onHome }) {
         report, every idea you share and every suggestion you make helps make the app better
         for the whole scene.
       </p>
-      <div className={s.reference}>
-        <span>Feedback ID</span>
-        <b>#{feedbackId}</b>
-      </div>
+      {/* ⛔ NO EMPTY REFERENCE BOX FOR A GUEST. A guest cannot read the row
+          back — there is no anon SELECT policy — so there is no number to
+          show. Rendering the box with "#" and nothing after it would look
+          like the save half-failed, which is the opposite of the truth. */}
+      {feedbackId != null && (
+        <div className={s.reference}>
+          <span>Feedback ID</span>
+          <b>#{feedbackId}</b>
+        </div>
+      )}
       <p className={s.introBody}>Every submission is personally reviewed.</p>
       <p className={s.introBody}>Thanks for being one of the gang.</p>
       <p className={s.signature}>Chz!<br />Lucious</p>
