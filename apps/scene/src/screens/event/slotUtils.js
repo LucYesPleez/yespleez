@@ -51,3 +51,32 @@ export function isWelcomeToCountry(label) {
 export function stripEmoji(str) {
   return str?.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim() || '';
 }
+
+/**
+ * ⭐⭐ WHAT A READER MAY SEE ON ONE SLOT — the ONE answer, for every surface.
+ *
+ * ⛔⛔ THIS EXISTS BECAUSE A SECOND SURFACE APPEARED. `SchedulePortrait`'s own
+ * header states the law: the projection decides WHERE a card goes, the card
+ * decides WHAT it says, and ⛔ restating the visibility rules in the projection
+ * "gave one question two answers, and the day the two disagreed the page would
+ * leak a name the card was hiding". The zoomed-out map needs a name to draw, so
+ * the rules moved HERE and `SlotCard` reads them too. ⛔ Do not copy this logic
+ * into a renderer — import it.
+ *
+ * The three rules, unchanged from the card that has always applied them:
+ *   · a DRAFT booking does not exist for the public          → open slot
+ *   · an unconfirmed booking exists but is not announced     → PENDING
+ *   · only a CONFIRMED act is named
+ *
+ * ⚠ `isHost` turns all three off, because the host is looking at their own
+ * working copy — that is the editor, not a leak.
+ *
+ * @returns { isEmpty, name, status } — `name` is '' when `isEmpty`.
+ */
+export function slotOccupant(claim, isHost = false) {
+  const status = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
+  const isEmpty = !claim || (!isHost && status === 'draft');
+  if (isEmpty) return { isEmpty: true, name: '', status };
+  const named = isHost || status === 'confirmed';
+  return { isEmpty: false, name: named ? (claim?.name || '') : 'PENDING', status };
+}

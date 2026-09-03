@@ -96,6 +96,21 @@
   color: rgba(255, 255, 255, .3);
 }
 
+/* ⭐ THE SCOPE LINE — quieter than the count, because it is context rather than
+   the reason to press anything. ⛔ Not a heading and ⛔ not a control: no
+   border, no chip, nothing that reads as pressable, or it competes with VIEW
+   ALL directly above it.
+   ⚠ `margin-top: -4px` pulls it under the heading's own bottom padding so the
+   two read as one block; the section's flex `gap: 12px` would otherwise float
+   it halfway to the schedule. */
+.scope {
+  margin: -4px 0 0 2px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: rgba(255, 255, 255, .34);
+}
+
 /* ── Day picker ─────────────────────────────────────────────────────── */
 
 /* ⭐⭐ THE CHIP RAIL — one row at ANY count (owner, 2026-08-21).

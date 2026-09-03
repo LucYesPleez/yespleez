@@ -43,3 +43,57 @@ test('⛔ a near miss does not count as a welcome', () => {
 test('an absent label is not an error', () => {
   for (const l of ['', null, undefined]) assert.equal(isWelcomeToCountry(l), false);
 });
+
+/* ── ⭐⭐ WHAT A READER MAY SEE ON ONE SLOT ────────────────────────────────
+   These rules used to live inline in `SlotCard`. They moved into `slotOccupant`
+   when the zoomed-out map needed a name to draw, and the whole reason for the
+   move is that TWO surfaces now answer the question — so the rules are pinned
+   here rather than trusted to stay in step by inspection.
+
+   ⛔⛔ A FAILURE IN THIS BLOCK IS A LEAK, ⛔ not a cosmetic regression: it means
+   the public schedule is printing an act the organiser has not announced. */
+import { slotOccupant } from './slotUtils.js';
+
+test('a DRAFT booking does not exist for the public', () => {
+  const claim = { status: 'draft', name: 'SECRET HEADLINER' };
+  const pub = slotOccupant(claim, false);
+  assert.equal(pub.isEmpty, true, 'a draft reads as an open slot');
+  assert.equal(pub.name, '', 'and it must carry no name at all');
+});
+
+test('a DRAFT booking is visible to the host, who is editing it', () => {
+  const host = slotOccupant({ status: 'draft', name: 'SECRET HEADLINER' }, true);
+  assert.equal(host.isEmpty, false);
+  assert.equal(host.name, 'SECRET HEADLINER');
+});
+
+test('an unconfirmed booking is PENDING, never the act', () => {
+  for (const status of ['pending', 'name_added', 'declined', 'invited']) {
+    const pub = slotOccupant({ status, name: 'NOT ANNOUNCED YET' }, false);
+    assert.equal(pub.isEmpty, false, `${status}: the time is spoken for`);
+    assert.equal(pub.name, 'PENDING', `${status}: ⛔ must not print the name`);
+  }
+});
+
+test('only a CONFIRMED act is named to the public', () => {
+  const pub = slotOccupant({ status: 'confirmed', name: 'LUCIOUS' }, false);
+  assert.equal(pub.isEmpty, false);
+  assert.equal(pub.name, 'LUCIOUS');
+});
+
+test('no claim at all is an open slot', () => {
+  for (const claim of [null, undefined]) {
+    assert.equal(slotOccupant(claim, false).isEmpty, true);
+    /* ⚠ Open to the HOST too — an empty slot is empty for everybody. The host
+       flag lifts the ANNOUNCEMENT rules, ⛔ it does not invent an occupant. */
+    assert.equal(slotOccupant(claim, true).isEmpty, true);
+  }
+});
+
+test('a claim with no status but a user is treated as pending, not as named', () => {
+  /* ⚠ The status fallback `SlotCard` has always used. A row written without an
+     explicit status must not fall through to "confirmed". */
+  const pub = slotOccupant({ user_id: 'u1', name: 'INVITED ACT' }, false);
+  assert.equal(pub.status, 'pending');
+  assert.equal(pub.name, 'PENDING');
+});
