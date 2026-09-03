@@ -35,6 +35,7 @@ import SetTimesScreen from './screens/SetTimesScreen';
 import QrDestinationScreen from './screens/QrDestinationScreen';
 import QrHarness from './screens/QrHarness';
 import EventLayoutHarness from './screens/event/EventLayoutHarness';
+import StickerHarness from './screens/dev/StickerHarness';
 import ScheduleHarness from './screens/event/ScheduleHarness';
 import CreateEventScreen from './screens/CreateEventScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
@@ -407,6 +408,12 @@ function Shell({ session, onSignOut }) {
             production bundle by the import.meta.env.DEV guard. */}
         {import.meta.env.DEV && (
           <Route path="/dev/event-layout"     element={<EventLayoutHarness />} />
+        )}
+        {/* DEV ONLY — the sticker effects harness. Same DEV guard, same
+            reason: the effects have to be judged on real artwork against real
+            backgrounds, not from pixel statistics. */}
+        {import.meta.env.DEV && (
+          <Route path="/dev/stickers"         element={<StickerHarness />} />
         )}
         {/* DEV ONLY — the public schedule projection (S3), against the real
             Solstice rows. The event-layout harness above does not cover set

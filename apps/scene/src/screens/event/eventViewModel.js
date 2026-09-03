@@ -448,6 +448,9 @@ export function buildCollectables({
         id:       logo.id,
         url:      logo.url,
         filename: logo.file_name || '',
+        // The artist's chosen look, carried through so the shelf renders it and
+        // SAVE bakes it into the file. Null means no effect, the common case.
+        effect:   logo.sticker_effect || null,
         // The alt text names the owner, because that is the only thing that
         // distinguishes one logo tile from another to a screen reader.
         alt:      `${profile.name || 'Profile'} logo`,

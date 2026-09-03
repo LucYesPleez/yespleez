@@ -28,7 +28,7 @@ export async function listAssets(profileId) {
   if (!profileId) return [];
   const { data, error } = await supabase
     .from('profile_assets')
-    .select('id, asset_type, storage_path, file_name, mime_type, byte_size, label, valid_until, is_current, created_at')
+    .select('id, asset_type, storage_path, file_name, mime_type, byte_size, label, valid_until, is_current, created_at, sticker_effect')
     .eq('profile_id', profileId)
     .eq('is_current', true)
     .order('created_at', { ascending: false });
@@ -131,6 +131,30 @@ export async function deleteAsset(asset) {
   }
 }
 
+/**
+ * Set (or clear) the sticker effect on one asset.
+ *
+ * ⭐ THE UPLOAD IS NEVER TOUCHED. This writes a string, not pixels — the effect
+ * is composited at render time from the original artwork, so changing it is
+ * free, reversible, and cannot degrade what the artist gave us. See
+ * lib/stickerEffects.
+ *
+ * ⛔ 'NONE' IS STORED AS NULL, and the CHECK constraint excludes it. Same
+ * shape as the analytics 'public' segment: the absence IS the default, so
+ * there is one representation of "no effect" rather than two that have to be
+ * kept agreeing.
+ */
+export async function setStickerEffect(assetId, effectKey) {
+  if (!assetId) throw new Error('Missing asset.');
+  const value = (!effectKey || effectKey === 'NONE') ? null : effectKey;
+  const { error } = await supabase
+    .from('profile_assets')
+    .update({ sticker_effect: value })
+    .eq('id', assetId);
+  if (error) throw error;
+  return value;
+}
+
 /** A short-lived signed URL for viewing or downloading. Null if it cannot be
  *  signed, so callers render "unavailable" rather than a dead link. */
 export async function assetUrl(storagePath) {
@@ -161,7 +185,7 @@ export async function fetchDistributableLogos(profileIds) {
 
   const { data, error } = await supabase
     .from('profile_assets')
-    .select('id, profile_id, asset_type, storage_path, file_name')
+    .select('id, profile_id, asset_type, storage_path, file_name, sticker_effect')
     .in('profile_id', ids)
     .in('asset_type', DISTRIBUTABLE_ASSET_TYPES)
     .eq('is_current', true)
@@ -204,7 +228,12 @@ export async function fetchDistributableLogos(profileIds) {
        broken must never render as sparse — it is dropped here, loudly absent
        rather than a dead <img>. */
     if (!url) continue;
-    (out[row.profile_id] ||= []).push({ id: row.id, url, file_name: row.file_name });
+    (out[row.profile_id] ||= []).push({
+      id: row.id, url, file_name: row.file_name,
+      // Carried to the shelf so the tile can render the artist's chosen look
+      // and SAVE can bake it. Null is the common case and means no effect.
+      sticker_effect: row.sticker_effect || null,
+    });
   }
   return out;
 }

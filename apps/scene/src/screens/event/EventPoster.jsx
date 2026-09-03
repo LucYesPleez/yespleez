@@ -44,6 +44,8 @@
 import { useState, useEffect } from 'react';
 import { CollectIcon, ExpandIcon, DownloadIcon } from './eventIcons';
 import s from './EventSections.module.css';
+import { renderSticker, loadStickerImage } from '../../lib/stickerEffects';
+import { saveStickerToDevice } from '../../lib/saveSticker';
 
 export default function EventPoster({
   poster = null,
@@ -100,35 +102,32 @@ export default function EventPoster({
         </div>
       </>}
 
-      {/* ── Under the poster: the other official images and stickers ──────
+      {/* ── STICKERS — the logos of everyone on this event ────────────────
           Each saves to the reader's device. Distinct from COLLECT above:
           collecting a poster keeps it in the collector's YesPleez profile,
           saving a sticker puts the file on their phone. Two different verbs
-          with two different destinations, so they do not share a control. */}
+          with two different destinations, so they do not share a control.
+
+          ⚠ THE SHELF IS NAMED NOW (owner, 2026-09-02: "stickers are just the
+          logos, poster stays the poster"). It was unlabelled, so the word
+          "collectables" lived only in the code and no reader ever met it —
+          renaming without a heading would have changed nothing on screen.
+
+          ⭐ This does NOT reopen 2026-08-04, when the section heading went
+          from "OFFICIAL POSTER & COLLECTABLES" back to "OFFICIAL POSTER"
+          because a plural heading promised a shelf that was not there. The
+          shelf IS here, and it now carries its own name instead of sharing
+          the poster's — which is the thing that heading could not do. ⛔ The
+          poster is not a sticker; two objects, two names, two verbs. */}
       {items.length > 0 && (
+        <>
+        <div className={s.headRow}><h3 className={s.subHeading}>STICKERS</h3></div>
         <div className={s.collectables}>
           {items.map(item => (
-            <a
-              key={item.id || item.url}
-              className={s.collectable}
-              href={item.url}
-              download={item.filename || ''}
-              // Cross-origin hrefs ignore `download` and open instead, which is
-              // still a usable outcome — the reader can long-press to save.
-              target="_blank"
-              rel="noopener noreferrer"
-              title={item.alt || 'Save to your device'}
-            >
-              <img className={s.collectableImg} src={item.url} alt={item.alt || ''} loading="lazy" />
-              {/* Revealed on hover for mouse users, always visible on touch —
-                  see the pointer query in the stylesheet. A hover-only
-                  affordance is invisible on the device most people are on. */}
-              <span className={s.collectableSave}>
-                <DownloadIcon size={14} /> SAVE
-              </span>
-            </a>
+            <StickerTile key={item.id || item.url} item={item} />
           ))}
         </div>
+        </>
       )}
 
       {/* Full resolution, whole. Being able to see all of it is what makes the
@@ -139,5 +138,74 @@ export default function EventPoster({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * ONE STICKER ON THE SHELF.
+ *
+ * ⭐⭐ THE TILE RENDERS THE EFFECT, AND SO DOES THE SAVE. Those are the same
+ * pixels produced by the same function at two sizes — if the tile were a CSS
+ * filter over the raw <img>, the collector would tap a puffy sticker and be
+ * handed a flat logo. Whatever is shown is what is saved.
+ *
+ * ⚠ IT IS A BUTTON, NOT A LINK, and that is a fix rather than a preference.
+ * The old markup was `<a href={signedUrl} download>`, and `download` is IGNORED
+ * cross-origin — Supabase storage is another origin, so SAVE opened a tab and
+ * left the reader to long-press. See lib/saveSticker.
+ *
+ * ⛔ THE RAW LOGO IS THE FALLBACK, NEVER A BLANK TILE. If the render fails —
+ * a tainted canvas, a logo that will not load — the plain artwork still shows.
+ * A sticker shelf with a hole in it reads as broken (R4: broken ≠ sparse);
+ * an unstyled logo reads as a logo.
+ */
+function StickerTile({ item }) {
+  const [src, setSrc] = useState(item.url);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!item?.url || !item.effect) { setSrc(item?.url || null); return; }
+    (async () => {
+      try {
+        const img = await loadStickerImage(item.url);
+        if (!alive) return;
+        // Tile-sized: the shelf cell is 84px, so rendering at save resolution
+        // here would be six full-size composites nobody looks at.
+        setSrc(renderSticker(img, item.effect, { size: 220 }).toDataURL('image/png'));
+      } catch {
+        if (alive) setSrc(item.url);
+      }
+    })();
+    return () => { alive = false; };
+  }, [item?.url, item?.effect]);
+
+  async function onSave() {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    const res = await saveStickerToDevice(item);
+    if (!res.saved) setFailed(true);
+    setBusy(false);
+  }
+
+  return (
+    <button
+      type="button"
+      className={s.collectable}
+      onClick={onSave}
+      disabled={busy}
+      title={failed ? 'That sticker could not be saved' : (item.alt || 'Save to your device')}
+      aria-label={`Save ${item.alt || 'sticker'} to your device`}
+    >
+      {src && <img className={s.collectableImg} src={src} alt={item.alt || ''} loading="lazy" />}
+      {/* Revealed on hover for mouse users, always visible on touch — see the
+          pointer query in the stylesheet. A hover-only affordance is invisible
+          on the device most people are on. */}
+      <span className={s.collectableSave}>
+        <DownloadIcon size={14} /> {busy ? '…' : failed ? 'RETRY' : 'SAVE'}
+      </span>
+    </button>
   );
 }
