@@ -85,3 +85,59 @@ test('isSoundcloud covers the share domain as well as the main one', () => {
   assert.equal(isSoundcloud('https://soundcloud.com/x'), true);
   assert.equal(isSoundcloud('https://mixcloud.com/x'), false);
 });
+
+/* ── pasted share text · feedback #10 ──────────────────────────────── */
+
+/** The exact value stored on the Cosmatik profile, byte for byte. */
+const COSMATIK_SHARE_TEXT =
+  'Listen to Cosmatik @ Sub Terra 2023 by Cosmatik on #SoundCloud https://on.soundcloud.com/RiYsQ3kiKVMkPrhjdQ';
+
+test('⭐⭐ THE SHARE SHEET GIVES A SENTENCE — the URL inside it is the address', () => {
+  assert.equal(
+    normaliseSoundcloudInput(COSMATIK_SHARE_TEXT),
+    'https://on.soundcloud.com/RiYsQ3kiKVMkPrhjdQ',
+  );
+});
+
+test('⛔ REGRESSION — the sentence must never become a URL by prefixing a scheme', () => {
+  // This is what shipped: `https://Listen to Cosmatik @ Sub Terra 2023 …`,
+  // which the widget received URL-encoded and played nothing.
+  const out = normaliseSoundcloudInput(COSMATIK_SHARE_TEXT);
+  assert.ok(!out.startsWith('https://Listen'), 'the sentence was prefixed with a scheme');
+  assert.ok(!/\s/.test(out), 'a URL cannot contain whitespace');
+});
+
+test('⛔⛔ PROSE IS NOT AN ADDRESS — mentioning the domain is not owning a link', () => {
+  assert.equal(normaliseSoundcloudInput('I love soundcloud.com so much'), '');
+  assert.equal(normaliseSoundcloudInput('check my soundcloud.com page out'), '');
+  assert.equal(normaliseSoundcloudInput('   '), '');
+});
+
+test('the URL wins wherever it sits in the text', () => {
+  assert.equal(
+    normaliseSoundcloudInput('https://soundcloud.com/a/b — my latest set'),
+    'https://soundcloud.com/a/b',
+  );
+  assert.equal(
+    normaliseSoundcloudInput('my latest set: https://soundcloud.com/a/b'),
+    'https://soundcloud.com/a/b',
+  );
+});
+
+test('trailing sentence punctuation is not part of the address', () => {
+  assert.equal(normaliseSoundcloudInput('Listen at https://soundcloud.com/a/b.'), 'https://soundcloud.com/a/b');
+  assert.equal(normaliseSoundcloudInput('(https://soundcloud.com/a/b)'), 'https://soundcloud.com/a/b');
+});
+
+test('every existing shape still normalises as it did', () => {
+  // Bare URL — the six profiles that already worked.
+  assert.equal(normaliseSoundcloudInput('https://soundcloud.com/luc-bruen/dragon-24-leftfield-1'),
+    'https://soundcloud.com/luc-bruen/dragon-24-leftfield-1');
+  // The share DOMAIN on its own, which resolveSoundcloud then canonicalises.
+  assert.equal(normaliseSoundcloudInput('https://on.soundcloud.com/d9H1MbeRsJFLkSOqjg'),
+    'https://on.soundcloud.com/d9H1MbeRsJFLkSOqjg');
+  // A bare handle keeps the courtesy the social fields extend.
+  assert.equal(normaliseSoundcloudInput('madspinbaby'), 'https://soundcloud.com/madspinbaby');
+  // A schemeless address is still an address.
+  assert.equal(normaliseSoundcloudInput('soundcloud.com/a/b'), 'https://soundcloud.com/a/b');
+});

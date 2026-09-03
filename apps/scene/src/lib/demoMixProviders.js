@@ -1,5 +1,5 @@
 import { soundcloudAdapter, mixcloudAdapter } from './mediaProviders';
-import { resolveSoundcloud } from './soundcloudResolve';
+import { resolveSoundcloud, normaliseSoundcloudInput, isSoundcloud } from './soundcloudResolve';
 
 /**
  * THE DEMO MIX PROVIDER ARCHITECTURE.
@@ -94,10 +94,19 @@ export const PROVIDERS = [
   {
     id: 'soundcloud',
     label: 'SoundCloud',
-    matches: url => Boolean(url) && url.includes('soundcloud.com'),
+    /* ⛔⛔ MATCHED ON THE NORMALISED VALUE, NOT THE RAW STRING. `includes` on
+       the raw text claimed anything mentioning the domain — including the
+       sentence SoundCloud's share button produces, and including prose like
+       "I love soundcloud.com". Owning a link and mentioning one are different
+       things, and only the first can be played. */
+    matches: url => isSoundcloud(normaliseSoundcloudInput(url)),
     surface: 'iframe',
+    /* ⚠ NORMALISED HERE TOO, and not only in resolveEmbed. MiniPlayer renders
+       the raw address immediately and swaps in the resolved one when it
+       arrives, so without this the first frame is still built from the
+       sentence — a visibly broken player before the fix lands a moment later. */
     embedUrl: url =>
-      `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}`
+      `https://w.soundcloud.com/player/?url=${encodeURIComponent(normaliseSoundcloudInput(url))}`
       + '&color=%2300e5ff&auto_play=true&hide_related=true&show_comments=false'
       + '&show_user=false&show_reposts=false&show_teaser=false',
 
