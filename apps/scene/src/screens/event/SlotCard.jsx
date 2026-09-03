@@ -30,7 +30,7 @@ import FollowHeartBtn from '../../components/FollowHeartBtn';
 import { profileIdentity } from '../../lib/profileTypes';
 import { stageDefaultImage } from '../../lib/stageDefaultImage';
 import { actPills } from '../../lib/actPills';
-import { parseDurMins, fmtDur, labelColor, stripEmoji, isWelcomeToCountry } from './slotUtils';
+import { parseDurMins, fmtDur, labelColor, stripEmoji, isWelcomeToCountry, slotOccupant } from './slotUtils';
 import s from '../EventScreen.module.css';
 
 /**
@@ -260,9 +260,17 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
   }[claimStatus] || { label: String(claimStatus).toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
   const isConfirmed   = claimStatus === 'confirmed';
   const isDraft       = claimStatus === 'draft';
-  const artistName    = claim?.name || '';
-  const publicName    = (!isHost && !isConfirmed && claim) ? 'PENDING' : artistName;
-  const isEmpty       = !claim || (!isHost && isDraft);
+  /**
+   * ⭐⭐ THE VISIBILITY RULES MOVED TO `slotUtils` (2026-08-31) — draft reads as
+   * open, unconfirmed reads as PENDING, only a confirmed act is named.
+   *
+   * ⛔⛔ THEY WERE INLINE HERE, AND THAT WAS FINE UNTIL A SECOND SURFACE NEEDED
+   * THEM. The zoomed-out schedule map draws a name too, and a copy of these two
+   * lines over there is the exact failure `SchedulePortrait`'s header warns
+   * about: two answers to one question, and a leak on the day they disagree.
+   * ⛔ Do not inline them again — this card and the map read the same function.
+   */
+  const { isEmpty, name: publicName } = slotOccupant(claim, isHost);
   const rawDur     = parseDurMins(slot.dur ?? slot.duration);
   const durLabel   = fmtDur(rawDur > 0 ? rawDur : 60);
   const cleanLabel = slot.label ? stripEmoji(slot.label) : null;

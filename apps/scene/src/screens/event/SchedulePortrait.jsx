@@ -37,7 +37,7 @@
 
 import { useRef, useState, useEffect, Fragment } from 'react';
 import { scheduleShape } from '../../lib/scheduleModel';
-import { slotGrid, stageGaps, peekScrollTop } from '../../lib/schedulePortrait';
+import { slotGrid, stageGaps, peekScrollTop, mergedTimeAxis } from '../../lib/schedulePortrait';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useNowMinute } from '../../hooks/useNowMinute';
 import { slotStates, phaseLabel, focusDayIndex, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
@@ -45,6 +45,7 @@ import { calendarEventsBySlot, downloadCalendarEvent } from '../../lib/calendarE
 import { today } from '../../lib/dates';
 import FollowHeartBtn from '../../components/FollowHeartBtn';
 import SlotCard from './SlotCard';
+import ScheduleMap from './ScheduleMap';
 import { dayDateLabel } from '../../lib/eventDays';
 import s from './SchedulePortrait.module.css';
 /* ⚠⚠ SlotCard's OWN stylesheet. The grid-cell rules reach INSIDE the card —
@@ -158,6 +159,34 @@ const DAY_REACHED_PX = 96;
 const PEEK_FADE_PX = 34;
 
 /**
+ * ⭐⭐ WHAT THE PEEK IS A WINDOW ONTO — the line that stops 500px of one stage
+ * reading as the whole schedule (owner, 2026-08-31).
+ *
+ * ⚠⚠ THE PEEK CANNOT SHOW ITS OWN SCALE. It is one stage of one day, and a
+ * reader has no way to tell that from four cards: the count in the heading says
+ * 38, the window shows four, and nothing on the page connects the two numbers.
+ * This states the shape in words, which is the cheap half of the answer.
+ *
+ * ⛔ NOT A TIME RANGE COMPUTED FROM THE CLOCK. `mergedTimeAxis` already walks
+ * each stage in `position` order and carries the midnight rollover, so its
+ * first and last entries are genuinely the day's first and last START times.
+ * Parsing the labels here would put a 1:00 AM close at the front of the night.
+ *
+ * ⚠ The LAST value is the last SET's start, ⛔ not the end of the night: the
+ * axis is built from start times. So it reads "from X" rather than claiming an
+ * end the schedule has not been asked for.
+ */
+function peekScopeLabel(day) {
+  const stages = (day?.stages || []).filter(Boolean);
+  const axis = mergedTimeAxis(day);
+  const first = axis[0];
+  const parts = [];
+  if (stages.length > 1) parts.push(`${stages.length} STAGES`);
+  if (first) parts.push(`FROM ${first.time} ${first.ampm}`.trim());
+  return parts.join(' · ');
+}
+
+/**
  * @param calendar Optional `{ event, venueProfile }` context for ADD TO
  *   CALENDAR. Screens that hold the event row pass it; surfaces that do not
  *   (the harness, the host editor's DaySlots path) simply never grow the
@@ -239,6 +268,23 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
   })();
 
   /**
+   * ⭐⭐ WHICH COLLAPSED STATE THIS EVENT GETS. Multi-stage collapses to the
+   * MAP; single-stage keeps the peek.
+   *
+   * ⚠⚠ THAT SPLIT IS THE POINT, ⛔ not an oversight. The map exists because a
+   * merged time axis leaves a late-opening stage with hours of empty rows above
+   * its first act, which is what made SET TIMES land blank. A single stage IS
+   * the axis — it has no leading gap and cannot be blank — and four real cards
+   * with artwork read better than four coloured bands. ⛔ Do not unify these
+   * for tidiness; they answer different questions.
+   *
+   * ⛔⛔ DECLARED ABOVE THE PEEK EFFECTS, which read it in a dependency array —
+   * and a dependency array is evaluated during render, so a `const` declared
+   * below is a temporal dead zone crash on first paint. Same rule as `stage`.
+   */
+  const mapped = (peekDays[0]?.stages || []).filter(Boolean).length > 1;
+
+  /**
    * ⭐⭐ THE PEEK OPENS WITH WHAT IS ON NOW IN THE MIDDLE (owner, 2026-08-29).
    *
    * ⚠ `scrollTop`, ⛔ NOT `scrollIntoView`: that walks every scrollable
@@ -262,11 +308,41 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
    * time it can find a live card, and then leaves the peek alone until it is
    * collapsed and reopened.
    */
+  /* ⛔⛔ DECLARED ABOVE THE PEEK, AND THAT POSITION IS LOAD-BEARING. The peek's
+     anchor depends on WHICH STAGE PAGE is in view, so `stage.index` is
+     in its dependency array — and a dependency array is evaluated during
+     render, at the `useEffect` call. Left below, that array reads a `const`
+     before its declaration: a temporal dead zone crash on first paint, ⛔ not a
+     lint warning. */
+  const [stage, setStage] = useState({ index: 0, from: null });
+
   const peekRef = useRef(null);
   const centred = useRef(false);
-  useEffect(() => { if (open) centred.current = false; }, [open]);
+  /* ⚠ The scrollTop WE wrote, so the effect can tell its own positioning apart
+     from the reader's. See the stage-change rule below. */
+  const anchoredAt = useRef(null);
+  useEffect(() => { if (open) { centred.current = false; anchoredAt.current = null; } }, [open]);
+  /**
+   * ⛔⛔ THIS RUNS BEFORE THE ANCHOR, AND THE ORDER IS THE WHOLE MECHANISM.
+   * React fires effects in declaration order, so releasing the latch below the
+   * anchor would release it one run too late: the anchor would bail on the
+   * stale latch and the re-anchor would not happen until the clock ticked, up
+   * to a minute later, with the peek blank in the meantime.
+   *
+   * ⚠ Releases ONLY if the peek is still exactly where the anchor last put it.
+   * A reader who has scrolled it keeps their position.
+   */
+  useEffect(() => {
+    const box = peekRef.current;
+    if (!box || anchoredAt.current === null) return;
+    if (Math.abs(box.scrollTop - anchoredAt.current) < 2) centred.current = false;
+  }, [stage.index]);
   useEffect(() => {
     if (open) return;                       // expanded: the page's own scroll
+    /* ⛔ THE MAP HAS NO PEEK TO ANCHOR. Collapsed multi-stage hides the peek
+       entirely, and a hidden element has no layout — every rect below would
+       read zero and the "anchor" would be arithmetic on nothing. */
+    if (mapped) return;
     if (centred.current) return;            // already positioned for this view
     const box = peekRef.current;
     /**
@@ -282,34 +358,38 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
      * unconditionally. `_live_` appeared on cards reading PLAYED and UPCOMING
      * in the same list.
      */
+    const liveEl = box?.querySelector(`.${s.playing}`);
     /**
-     * ⭐⭐ NOTHING PLAYING FALLS BACK TO THE FIRST ACT, ⛔ never to the top of
-     * the grid (owner, 2026-09-01: "its still on an empty set time").
+     * ⛔⛔ NOTHING PLAYING DOES NOT MEAN LEAVE IT AT THE TOP (owner, 2026-08-31:
+     * "the set times dont look right, people will think its missing info").
      *
-     * ⛔⛔ LEAVING IT AT THE TOP IS NOT NEUTRAL — it is the blank. The grid
-     * starts at the earliest slot ACROSS ALL STAGES, so a stage that opens
-     * later begins with empty rows: Neverland's Saturday runs workshops from
-     * 10am and the live stage from 2pm, which is four hours — sixteen rows at a
-     * 15-minute interval — of nothing above the first band. The peek opened
-     * there and read as "no set times" on a day with twenty-one of them.
+     * ⚠⚠ THE TOP OF THE PEEK IS NOT THE TOP OF THE STAGE. Every stage shares
+     * ONE merged 15-minute axis (`slotGrid`), so row 1 belongs to whichever
+     * stage opens EARLIEST. On Echo Valley the workshops start in the morning
+     * and the live stage starts in the afternoon — sixteen empty rows above its
+     * first act. Scrolled to 0, a 500px peek on that page showed the watermark
+     * and nothing else, on an event with 38 sets. It read as broken.
      *
-     * ⚠ IT ONLY BIT ON A FINISHED OR NOT-YET-STARTED EVENT, which is why it
-     * survived: while something is on stage there IS a `.playing` card and this
-     * never ran. Every past festival opened on a wall of empty grid.
+     * ⭐ SO THE FALLBACK IS THE FIRST CARD OF THE PAGE YOU ARE STANDING ON, and
+     * that is also the only honest answer before doors: a schedule nobody has
+     * started yet opens on its first act. ⛔ Not the first card in the DOM —
+     * that is stage one's, and it would anchor the peek on a column the reader
+     * cannot see.
      *
-     * ⚠ THE FIRST CARD IN THE DOM IS THE ACTIVE STAGE'S. Cells are emitted
-     * stage by stage, so `querySelector` returns the first act of the column
-     * the reader is parked on rather than the earliest act of the day on some
-     * other stage.
-     *
-     * ⛔ STILL ONCE. `centred` guards this the same way; a reader who scrolls
-     * away is not dragged back.
+     * ⚠ Cells carry `gridColumn: sIdx + 1` inline, which is the only thing in
+     * the DOM that says which stage a card belongs to. Reading the inline style
+     * keeps this independent of the hashed class names and of row order.
      */
-    const playingEl = box?.querySelector(`.${s.playing}`);
-    const liveEl = playingEl || box?.querySelector(`.${es.stagePageCell}`);
-    // ⚠ No cards at all — the day is genuinely empty, or the data is still
-    // resolving. Leave the peek alone and try again on the next tick.
-    if (!box || !liveEl) return;
+    const anchorEl = liveEl || (() => {
+      const cells = [...(box?.querySelectorAll(`.${es.stagePageCell}`) || [])];
+      /* ⚠ Single-stage renders no `gridColumn`, so `|| '1'` lands every card in
+         column one and the first in DOM order wins, which is correct there. */
+      return cells.find(c => (c.style.gridColumn || '1') === String(stage.index + 1))
+        || cells[0]
+        || null;
+    })();
+    // ⚠ No cards at all (the data is still resolving) — try again next tick.
+    if (!box || !anchorEl) return;
     /**
      * ⛔⛔ MEASURED FROM RECTS, ⛔ NEVER `offsetTop` — AND THIS IS THE SECOND
      * HALF OF THE SAME DEFECT. `offsetTop` is relative to the nearest
@@ -324,29 +404,40 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
      * single-stage list and the stage pager alike. ⚠ `+ box.scrollTop` because
      * a rect is viewport-relative and the box may already be scrolled.
      */
-    const top = liveEl.getBoundingClientRect().top
+    const top = anchorEl.getBoundingClientRect().top
       - box.getBoundingClientRect().top
       + box.scrollTop;
 
     /**
-     * ⭐ CENTRING ANSWERS "WHERE IS THE NIGHT UP TO", which is only a question
-     * while a night is running. ⛔ Centring the FIRST act instead puts half a
-     * box of empty grid above it — a smaller version of the blank this fixes.
-     * A finished or unstarted programme simply starts at its first act.
+     * ⭐ A PLAYING SET IS CENTRED, a first act is put at the TOP. Centring
+     * answers "what just finished / what is next", which is a question only a
+     * running night has. Before doors there is nothing above the first act to
+     * show, so centring it would push half the peek's window into blank space
+     * above the schedule — the same emptiness this is here to remove.
      */
-    box.scrollTop = playingEl
+    box.scrollTop = liveEl
       ? peekScrollTop(
         top,
-        liveEl.getBoundingClientRect().height,
+        anchorEl.getBoundingClientRect().height,
         box.clientHeight,
         PEEK_FADE_PX,
       )
-      /* ⚠ A few pixels of air so the card does not sit flush against the top
-         edge and read as clipped. */
-      : Math.max(0, top - 8);
+      : Math.max(0, top);
+    anchoredAt.current = box.scrollTop;
     centred.current = true;
-  }, [open, now, peekDays.length]);
-  const [stage, setStage] = useState({ index: 0, from: null });
+    /**
+     * ⛔⛔ THE STAGE INDEX IS A DEPENDENCY, and it has to be: swiping to a stage
+     * that opens three hours later lands on that stage's empty rows and the
+     * peek goes blank again — the identical defect, one gesture away.
+     *
+     * ⚠⚠ BUT THE READER STILL WINS. `centred` is only released when the peek
+     * is sitting exactly where this effect last put it. Scroll the peek
+     * yourself and it stops re-anchoring, which keeps the section's own law:
+     * ⛔ nothing chases the reader down the running order.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mapped, now, peekDays.length, stage.index]);
+
   const stageSync = {
     index: stage.index,
     from: stage.from,
@@ -364,6 +455,29 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
    * headings that used to be the anchor are gone (owner, 2026-08-28: no white
    * day-and-date text). ⛔ Do not remove those wrappers; this reads them.
    */
+  /* ⚠ The PEEK's day, ⛔ not the event's — the line describes the window that
+     is actually on screen. */
+  const peekScope = peekScopeLabel(peekDays[0]);
+
+  /**
+   * ⭐ THE SET A MAP BLOCK ASKED FOR. Held rather than acted on, because the
+   * card it names has no layout until the schedule is open — see the effect.
+   */
+  const [focusSlot, setFocusSlot] = useState(null);
+  useEffect(() => {
+    if (!open || !focusSlot) return undefined;
+    /* ⚠ ONE FRAME LATER. The pager mounts and lays out on this render; asking
+       for its position now measures the frame before it existed. */
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-slot="${CSS.escape(focusSlot)}"]`);
+      /* ⚠ `block: 'center'` — the app's fixed header eats the top of the
+         viewport, so 'start' lands the card underneath it. */
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setFocusSlot(null);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open, focusSlot]);
+
   const [activeDay, setActiveDay] = useState(days[0]?.dayIndex ?? 0);
   useEffect(() => {
     const list = resolved?.days || [];
@@ -432,6 +546,40 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
       </button>
 
       {/**
+        * ⭐⭐ THE SCOPE LINE — COLLAPSED ONLY (owner, 2026-08-31). Expanded, the
+        * whole schedule is on the page and states its own shape; a summary of
+        * something you are already looking at is noise.
+        *
+        * ⚠ It sits OUTSIDE the heading button on purpose. The button's job is
+        * "do you want the rest of it" and every extra line inside it makes that
+        * target say two things at once.
+        */}
+      {!open && !mapped && !!peekScope && <p className={s.scope}>{peekScope}</p>}
+
+      {/**
+        * ⭐⭐ COLLAPSED, A MULTI-STAGE EVENT SHOWS A MAP (owner, 2026-08-31: "I
+        * just dont want the set times section to be empty when people land on
+        * the event"). Every stage, the whole day, scaled to fit — see
+        * ScheduleMap.jsx for why a window could never answer that.
+        *
+        * ⛔ THE SCOPE LINE IS SUPPRESSED WHEN THE MAP IS UP. "3 STAGES · FROM
+        * 10:00 AM" is exactly what the map's stage headings and hour gutter
+        * already say, in more detail, an inch below.
+        *
+        * ⭐ TAPPING A BLOCK OPENS THE SCHEDULE AT THAT SET, so the map is
+        * navigation rather than a picture: read the shape of the day, press the
+        * one you care about, land on its card. ⛔ Not a filter — VIEW ALL opens
+        * the same whole schedule either way.
+        */}
+      {!open && mapped && (
+        <ScheduleMap
+          day={peekDays[0]}
+          now={now}
+          onPick={id => { setFocusSlot(id); setOpen(true); }}
+        />
+      )}
+
+      {/**
         * ⛔⛔ THE DAY CHIP RAIL WAS REMOVED (owner, 2026-08-28: "why does it
         * say it twice here").
         *
@@ -470,7 +618,17 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
         * dividers are an index for the expanded view rather than something to
         * scroll past to reach four cards.
         */}
-      <div className={open ? undefined : s.peek} ref={peekRef}>
+      {/* ⛔ HIDDEN, ⛔ NOT UNMOUNTED, while the map is up. The map's blocks open
+          the schedule AT a set, and the scroll that lands on it needs the card
+          to already exist — remounting the whole pager on the same tick would
+          mean scrolling to an element that is not there yet. `display: none`
+          also keeps the day refs and the stage sync alive across the toggle. */}
+      <div
+        className={open ? undefined : s.peek}
+        ref={peekRef}
+        style={!open && mapped ? { display: 'none' } : undefined}
+        aria-hidden={!open && mapped ? 'true' : undefined}
+      >
       {(open ? days : peekDays).map(day => (
         <div
           key={day.dayIndex}
@@ -963,26 +1121,25 @@ function StagePager({ day, allMixSlots, now, sync, calBySlot = null }) {
         {/**
           * ⭐⭐ A STAGE THAT IS DARK TONIGHT SAYS SO (owner, 2026-09-01: "it
           * looks like there are no set times… just dont ever have this spot
-          * blank").
+          * blank"). Shipped as 044e2e8 and CARRIED FORWARD into this rebuild at
+          * the owner's instruction — ⛔ do not drop it when this file lands.
           *
           * ⛔⛔ EVERY DAY GETS A BUCKET FOR EVERY STAGE, empty ones included —
           * `scheduleModel` builds one per stage of the EVENT, not per stage
           * running that day. Neverland runs LIVE and DJ on Friday and Saturday
           * and only WORKSHOPS on Sunday, so Sunday's LIVE column had nothing in
-          * it and the section under the chips was simply empty. Thirty-eight
-          * set times exist and the page showed a hole.
+          * it and the section under the chips was simply empty.
           *
           * ⛔ THE PAGER COULD NOT BE THE ANSWER. The stage index is SHARED
           * across days — one index positions all of them — so auto-jumping
           * Sunday to Workshops drags Friday there too, and Friday has no
           * workshops. That trades one blank for another.
           *
-          * ⭐ So the empty column fills itself: it names the day, says nothing
-          * is on, and offers the stage that IS running. Tapping it is an
-          * ordinary chip jump, which is allowed to move every day because the
-          * reader asked for it.
+          * ⚠ `focusDayIndex` now opens a finished festival on its BUSIEST day
+          * (d34c449), so this is the backstop rather than the common path: it
+          * still fires whenever someone swipes to a stage that is dark that day.
           *
-          * ⚠ Spans the whole grid so the column has the height of its
+          * ⚠ Spans the whole grid so the column keeps the height of its
           * neighbours; a short notice in a tall grid would leave the hole this
           * exists to remove (Rendering Contract: absent, never a visual gap).
           */}
@@ -1012,6 +1169,9 @@ function StagePager({ day, allMixSlots, now, sync, calBySlot = null }) {
             {grid.stages[sIdx].map((cell, i) => (
               <div
                 key={cell.entry.slot.id}
+                /* ⭐ The map's blocks scroll to a card by this. ⛔ Not the React
+                   `key` — that is not in the DOM and cannot be queried. */
+                data-slot={cell.entry.slot.id}
                 /* ⭐ Same two degrees of short as the host schedule: under an
                    hour the padding gives way, half an hour or less also drops
                    AM/PM and the length. ⛔ Not a pixel test — change the
