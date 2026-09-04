@@ -9,10 +9,15 @@
 
       https://yespleez.com/embed/venue-events.html?venue=<profile uuid>
 
-  ⛔ It adds NO rules of its own. It reads the venue id off the query string,
-  hands it to the same `venue-events.js` every HTML embed uses, and gets out of
-  the way — a second implementation of the widget is exactly the thing this
-  file must never become.
+  Every option the HTML embed takes works here as a query parameter — theme,
+  layout, columns, accent, limit — so the two modes are the same widget with
+  the same choices, ⛔ not a full one and a crippled one.
+
+  ⛔ It adds NO rules of its own. It reads the options off the query string,
+  hands them to the same `venue-events.js` every HTML embed uses, and gets out
+  of the way — a second implementation of the widget is exactly the thing this
+  file must never become. ⚠ It does not validate them either: `venue-events.js`
+  owns that, and a second opinion here is a second thing to disagree.
 
   ⚠ `noindex` because this page is a fragment. Left indexable it would compete
   in search with the venue's real page and with YesPleez's own.
@@ -27,13 +32,17 @@
 <body>
 <div id="mount"></div>
 <script>
-  /* ⛔ setAttribute, not innerHTML — the value comes from the query string, so
-     it is attacker-controlled on any URL a stranger can send. The widget
-     itself refuses anything that is not a uuid-shaped id the API accepts. */
+  /* ⛔ setAttribute, not innerHTML — every value here comes from the query
+     string, so it is attacker-controlled on any URL a stranger can send. They
+     are carried across as ATTRIBUTES and nothing else; `venue-events.js` looks
+     each one up in its own table and falls back to the default, and the API
+     refuses anything that is not a uuid-shaped id. */
   var params = new URLSearchParams(location.search);
   var mount = document.getElementById('mount');
   mount.setAttribute('data-yespleez-venue', params.get('venue') || '');
-  if (params.get('limit')) mount.setAttribute('data-yespleez-limit', params.get('limit'));
+  ['theme', 'layout', 'columns', 'accent', 'limit'].forEach(function (name) {
+    if (params.get(name)) mount.setAttribute('data-yespleez-' + name, params.get(name));
+  });
 </script>
 <script src="./venue-events.js"></script>
 </body>

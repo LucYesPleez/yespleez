@@ -116,6 +116,95 @@ test('the widget is responsive — a single column that grows with the space', (
   assert.match(CODE, /width:100%/);
 });
 
+/* ── the presets ───────────────────────────────────────────────────────────── */
+
+test('⭐ the three option tables are closed sets, not free text', () => {
+  assert.match(CODE, /var THEMES = \{ light: 1, dark: 1, plain: 1 \}/);
+  assert.match(CODE, /var LAYOUTS = \{ grid: 1, posters: 1, list: 1 \}/);
+  assert.match(CODE, /var COLUMNS = \{ auto: 1, '1': 1, '2': 1, '3': 1, '4': 1 \}/);
+});
+
+test('⭐⭐ an unrecognised option renders the DEFAULT, never an error and never nothing', () => {
+  /* A snippet is pasted into a CMS once and never revisited. A typo'd theme
+     must look like the standard widget, not like a bug the venue has to
+     diagnose on their own homepage. */
+  assert.match(CODE, /function pick\(mount, name, allowed, fallback\)/);
+  assert.match(CODE, /hasOwnProperty\.call\(allowed, v\) \? v : fallback/);
+  assert.match(CODE, /pick\(mount, 'theme', THEMES, 'light'\)/);
+  assert.match(CODE, /pick\(mount, 'layout', LAYOUTS, 'grid'\)/);
+  assert.match(CODE, /pick\(mount, 'columns', COLUMNS, 'auto'\)/);
+});
+
+test('⚠ the default theme is LIGHT — a preset must state colour AND background', () => {
+  /* The widget shipped transparent-and-inherit, which in an iframe embed
+     inherits nothing: black text over whatever photograph is behind it. Every
+     theme now states both halves. */
+  for (const theme of ['light', 'dark', 'plain']) {
+    assert.ok(CODE.includes(`.ypz-ve--theme-${theme}{color:`), `${theme} states no text colour`);
+    assert.ok(CODE.includes(`.ypz-ve--theme-${theme} .ypz-ve-card{background:`), `${theme} states no card background`);
+  }
+});
+
+test('⛔⛔ NO option is ever interpolated into the stylesheet', () => {
+  /* The one innerHTML assigns CSS, and CSS is built from string literals only.
+     If an attribute could reach it, an embed could inject arbitrary CSS into
+     the page — and the constant-stylesheet guarantee above would be a fiction. */
+  const cssBlock = CODE.slice(CODE.indexOf('var CSS = ['), CODE.indexOf('].join(\'\')'));
+
+  /* ⚠ The guard is about MECHANICS, not vocabulary. `theme`, `layout` and
+     `accent` appear all over this block as CLASS NAMES and a custom-property
+     name, which is exactly right — an earlier version of this test banned the
+     words and failed on its own correct code. What must not appear is any way
+     to get a runtime value into the string. */
+  for (const interpolation of [/`/, /\$\{/, /\+/, /getAttribute/, /\bpick\s*\(/, /\bmount\b/]) {
+    assert.doesNotMatch(cssBlock, interpolation,
+      `the stylesheet must be string literals only — found ${interpolation}`);
+  }
+
+  /* Classes are built by concatenating a FIXED PREFIX with a value that has
+     already been looked up in a table — never with raw attribute text. */
+  assert.doesNotMatch(CODE, /classList\.add\([^)]*getAttribute/);
+});
+
+test('⭐ the accent colour is a custom property behind a hex test, not CSS', () => {
+  assert.match(CODE, /var HEX = \/\^#\(\?:\[0-9a-f\]\{3,4\}\|\[0-9a-f\]\{6\}\|\[0-9a-f\]\{8\}\)\$\/i/);
+  assert.match(CODE, /if \(HEX\.test\(accent\)\) \{/);
+  assert.match(CODE, /mount\.style\.setProperty\('--ypz-ve-accent', accent\)/,
+    'setProperty is parsed by the browser and drops a non-colour; string concatenation is not');
+  /* Set on the MOUNT, so two widgets on one page can carry different accents. */
+  assert.doesNotMatch(CODE, /document\.(documentElement|body)\.style\.setProperty/);
+  /* And the sheet consumes it with a fallback, so an unset accent is just the
+     text colour rather than a blank rule. */
+  assert.match(CODE, /color:var\(--ypz-ve-accent,currentColor\)/);
+});
+
+test('⚠ a pinned column count is a MAXIMUM — phones stay single-column', () => {
+  /* Every columns rule lives inside a min-width query, so nothing can force
+     three cards across a 375px screen. */
+  const colRules = CODE.match(/\.ypz-ve--cols-\d[^']*/g) || [];
+  assert.ok(colRules.length > 0);
+  for (const rule of colRules) {
+    const line = CODE.slice(CODE.lastIndexOf("'", CODE.indexOf(rule)), CODE.indexOf(rule));
+    assert.match(line, /@media \(min-width:/, `a columns rule outside a media query: ${rule}`);
+  }
+});
+
+test('⚠ the LIST layout outranks the column rules — a list is one column', () => {
+  /* Three classes deep against the column rules' two, so a `columns` attribute
+     left in a snippet cannot turn a list back into a grid. */
+  assert.match(CODE, /\.ypz-ve\.ypz-ve--layout-list \.ypz-ve-list\{grid-template-columns:1fr/);
+});
+
+test('the layouts differ in the ways they claim to', () => {
+  assert.match(CODE, /\.ypz-ve--layout-grid \.ypz-ve-img\{aspect-ratio:3\/2\}/);
+  assert.match(CODE, /\.ypz-ve--layout-posters \.ypz-ve-img\{aspect-ratio:2\/3\}/);
+  /* A poster carries its own bill and date, so the blurb under it repeats the
+     picture; a list row has no space for one. */
+  assert.match(CODE, /\.ypz-ve--layout-posters \.ypz-ve-desc\{display:none\}/);
+  assert.match(CODE, /\.ypz-ve--layout-list \.ypz-ve-desc\{display:none\}/);
+  assert.match(CODE, /\.ypz-ve--layout-list \.ypz-ve-card\{flex-direction:row/);
+});
+
 test('⛔ the widget cannot restyle the page it lands on', () => {
   const css = CODE.slice(CODE.indexOf('var CSS'), CODE.indexOf('function ensureStyle'));
   /* Every selector is prefixed. A bare `body`, `a` or `*` rule would silently
@@ -145,6 +234,19 @@ test('⭐ the HTML wrapper reuses the widget rather than reimplementing it', () 
 test('⛔ the wrapper puts the query string in an ATTRIBUTE, never in markup', () => {
   assert.match(PAGE, /setAttribute\('data-yespleez-venue'/);
   assert.doesNotMatch(stripComments(PAGE), /innerHTML|document\.write/);
+});
+
+test('⭐ URL mode carries EVERY option the HTML embed takes', () => {
+  /* Two ways in, one widget. A builder that only offers "paste a URL" must not
+     get a crippled version of the thing. */
+  assert.match(PAGE, /\['theme', 'layout', 'columns', 'accent', 'limit'\]/);
+  assert.match(PAGE, /setAttribute\('data-yespleez-' \+ name, params\.get\(name\)\)/);
+});
+
+test('⛔ the wrapper validates nothing — venue-events.js owns that', () => {
+  /* A second opinion on what a valid theme is, is a second thing to disagree
+     with the first. The wrapper hands values over; the widget decides. */
+  assert.doesNotMatch(stripComments(PAGE), /THEMES|LAYOUTS|COLUMNS|\/\^#/);
 });
 
 test('the wrapper is not indexable — it is a fragment, not a page', () => {
