@@ -214,6 +214,20 @@ test('the public fields carry the values a listing needs', () => {
   assert.equal(e.venue_name, 'The Federal Hotel');
 });
 
+test('genres are published as a cleaned ARRAY, using the app\'s own reader', () => {
+  /* ⚠ Live Federal rows: "Deep Funky Tunes ", "House, Funky House, Reworks  ".
+     A naive split keeps the trailing spaces and the duplicates; `readGenres`
+     is the reader every other surface uses. */
+  assert.deepEqual(publicEvent(ev({}, { genres: 'House, Funky House, Reworks  ' }), {}).genres,
+    ['House', 'Funky House', 'Reworks']);
+  assert.deepEqual(publicEvent(ev({}, { genres: 'Techno · techno' }), {}).genres, ['Techno'],
+    'deduplicated case-insensitively, as everywhere else');
+  /* ⛔ An ARRAY, not a joined string — the separator is a display choice and
+     the feed must not decide a venue website\'s typography. */
+  assert.deepEqual(publicEvent(ev({}, { genres: '' }), {}).genres, []);
+  assert.deepEqual(publicEvent(ev({}, { genres: undefined }), {}).genres, []);
+});
+
 test('a doors time is published when one is set', () => {
   const e = publicEvent(ev({}, { doors: '7:00', doors_ampm: 'PM' }), {});
   assert.equal(e.doors, '7:00pm');

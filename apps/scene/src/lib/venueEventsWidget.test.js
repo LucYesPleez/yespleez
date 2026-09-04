@@ -116,6 +116,110 @@ test('the widget is responsive — a single column that grows with the space', (
   assert.match(CODE, /width:100%/);
 });
 
+/* ── the card ──────────────────────────────────────────────────────────────── */
+
+test('⭐ the date is a BLOCK — weekday, numeral, month — not a sentence', () => {
+  assert.match(CODE, /function dateParts\(iso\)/);
+  assert.match(CODE, /el\('span', 'ypz-ve-dow', parts\.dow\)/);
+  assert.match(CODE, /el\('span', 'ypz-ve-day', daySpan\(ev, parts\)\)/);
+  assert.match(CODE, /el\('span', 'ypz-ve-mon', parts\.mon\)/);
+  /* ⚠ Local noon. `new Date('2026-09-11')` is UTC midnight, which is the 10th
+     in the Americas — the widget would print a day the poster does not. */
+  assert.match(CODE, /new Date\(iso \+ 'T12:00:00'\)/);
+});
+
+test('⭐ a little divider rule stands between the date and the heading', () => {
+  assert.match(CODE, /\.ypz-ve-date\{[^']*border-right:1px solid\}/);
+  /* ⚠ `flex-start`, so the rule is the DATE STACK'S own height. `stretch` would
+     run it the full height of the card now the blurb sits in the title column. */
+  assert.match(CODE, /\.ypz-ve-head\{display:flex;align-items:flex-start\}/);
+  /* Its colour is a theme's business — a black hairline is invisible on dark. */
+  for (const theme of ['light', 'dark', 'plain']) {
+    assert.ok(CODE.includes(`.ypz-ve--theme-${theme} .ypz-ve-date{border-right-color:`),
+      `${theme} does not colour the divider`);
+  }
+});
+
+test('⭐ the blurb sits in the TITLE column, aligned to the heading', () => {
+  /* Per the comp: the description's left edge is the title's, not the date
+     numeral's. The time and place rows below still run the card's full width —
+     they describe the event, not the heading. */
+  assert.match(CODE, /titles\.appendChild\(el\('p', 'ypz-ve-desc'/);
+  assert.doesNotMatch(CODE, /body\.appendChild\(el\('p', 'ypz-ve-desc'/);
+});
+
+test('⭐⭐ the time row holds its space when there is no time — and states nothing', () => {
+  /* Five of the Federal Hotel's seven upcoming events have no start time. A
+     card that omitted the row would sit its venue line and its button a row
+     above its neighbours and the grid would read as broken. So the row is
+     always emitted; when empty it carries NO icon and NO words, and holds its
+     line by min-height alone. ⛔ Reserving space asserts nothing; "TBA" would. */
+  assert.match(CODE, /metas\.appendChild\(metaRow\('clock', ev\.start_time \|\| ev\.doors\) \|\| el\('div', 'ypz-ve-meta'\)\)/);
+  assert.match(CODE, /metas\.appendChild\(metaRow\('pin', venueLabel\) \|\| el\('div', 'ypz-ve-meta'\)\)/);
+  assert.match(CODE, /\.ypz-ve-meta\{[^']*min-height:\d+px\}/);
+  /* The empty row is built by `el`, which appends no icon — the icon only ever
+     comes from `metaRow`, which returns null when there is no text. */
+  assert.match(CODE, /function metaRow\(iconName, text\) \{\s*if \(!text\) return null;/);
+});
+
+test('⭐⭐ every zone has a floor, so the cards agree line for line', () => {
+  /* A one-line title must not pull the blurb up, and a missing genre must not
+     lift the button. The floors equal the clamp ceilings. */
+  assert.match(CODE, /\.ypz-ve--layout-grid \.ypz-ve-name\{min-height:[\d.]+em\}/);
+  assert.match(CODE, /\.ypz-ve--layout-grid \.ypz-ve-tag\{min-height:[\d.]+em\}/);
+  assert.match(CODE, /\.ypz-ve--layout-grid \.ypz-ve-desc\{min-height:[\d.]+em\}/);
+  /* Which means genre and blurb are emitted even when empty — a min-height
+     reserves nothing for an element that was never created. */
+  assert.match(CODE, /titles\.appendChild\(el\('div', 'ypz-ve-tag', genres\)\)/);
+  assert.match(CODE, /el\('p', 'ypz-ve-desc', ev\.description \|\| ''\)/);
+  /* ⚠ The reservation is a GRID promise: a poster wall and a sidebar list are
+     compact by definition, so an empty row there is dead space. */
+  assert.match(CODE, /\.ypz-ve--layout-posters \.ypz-ve-meta:empty\{display:none\}/);
+  assert.match(CODE, /\.ypz-ve--layout-list \.ypz-ve-meta:empty\{display:none\}/);
+});
+
+test('⚠⚠ a filled row is still conditional on its DATA — nothing is invented', () => {
+  /* Two of the Federal Hotel's seven upcoming events carry a start time. A
+     card that printed "TBA" or an empty clock row for the other five would be
+     stating a fact nobody recorded. */
+  /* ⚠ The ROW is reserved (see above); its CONTENT is not. `metaRow` returns
+     null rather than an icon beside nothing, the date block is drawn only when
+     the date parses, and the button only when there is somewhere to go. */
+  assert.match(CODE, /function metaRow\(iconName, text\) \{\s*if \(!text\) return null;/);
+  assert.match(CODE, /if \(parts\) \{/);
+  assert.match(CODE, /if \(href\) body\.appendChild\(el\('span', 'ypz-ve-cta'/);
+  assert.match(CODE, /if \(img\) \{/);
+  /* ⛔ No placeholder text anywhere — an empty zone stays empty. */
+  assert.doesNotMatch(CODE, /'TBA'|'To be announced'|'Time TBC'|'Coming soon'|'Doors TBC'/);
+});
+
+test('⛔ the icons are built with createElementNS, NOT an innerHTML string of SVG', () => {
+  /* The one innerHTML in this file is the stylesheet; an icon is not worth
+     reopening that door. Path data is a constant. */
+  assert.match(CODE, /document\.createElementNS\(SVG_NS, 'svg'\)/);
+  assert.match(CODE, /document\.createElementNS\(SVG_NS, 'path'\)/);
+  assert.match(CODE, /path\.setAttribute\('d', ICONS\[name\]\)/);
+  assert.doesNotMatch(CODE, /<svg/);
+});
+
+test('⚠ VIEW EVENT is a SPAN — an anchor inside an anchor is invalid', () => {
+  /* The whole card is already the link. */
+  assert.match(CODE, /el\('span', 'ypz-ve-cta', 'View event'\)/);
+  assert.match(CODE, /if \(href\) body\.appendChild\(el\('span', 'ypz-ve-cta'/,
+    'no button on a card that has nowhere to go');
+});
+
+test('⭐ the footer offers the way back to the venue\'s whole YesPleez page', () => {
+  assert.match(CODE, /'See all upcoming at ' \+ data\.venue\.name/);
+  assert.match(CODE, /var venueUrl = data\.venue && safeUrl\(data\.venue\.url\)/);
+  assert.match(CODE, /if \(venueUrl\) \{/, '⛔ never a dead button when the feed named no url');
+  assert.match(CODE, /'Events powered by '/);
+});
+
+test('the venue line names the venue and its town, whichever the feed gave', () => {
+  assert.match(CODE, /\[venue\.name, venue\.town\]\.filter\(Boolean\)\.join\(', '\)/);
+});
+
 /* ── the presets ───────────────────────────────────────────────────────────── */
 
 test('⭐ the three option tables are closed sets, not free text', () => {
@@ -133,6 +237,28 @@ test('⭐⭐ an unrecognised option renders the DEFAULT, never an error and neve
   assert.match(CODE, /pick\(mount, 'theme', THEMES, 'light'\)/);
   assert.match(CODE, /pick\(mount, 'layout', LAYOUTS, 'grid'\)/);
   assert.match(CODE, /pick\(mount, 'columns', COLUMNS, 'auto'\)/);
+});
+
+test('⭐ the LIGHT theme paints its own ground, and DARK deliberately does not', () => {
+  /* Light is a cream panel with white cards and real padding — the whitespace
+     IS the design, and a widget that inherited a cramped container would lose
+     it. Dark paints nothing: a venue choosing it has a dark, usually
+     photographic site, and a flat panel would hide the design they chose. */
+  assert.match(CODE, /\.ypz-ve--theme-light\{color:#[0-9a-f]{6};background:#[0-9a-f]{6};padding:\d+px\}/);
+  assert.match(CODE, /\.ypz-ve--theme-light \.ypz-ve-card\{background:#fff/);
+  assert.match(CODE, /\.ypz-ve--theme-dark\{color:#[0-9a-f]{6}\}/,
+    'dark states a colour and NO background — that is the deliberate asymmetry');
+});
+
+test('⚠ title and blurb are CLAMPED, and the widget never rewrites either', () => {
+  /* A comp says "MADSPIN BABY"; the row is called "The Friday Mix Up feat
+     MADSPiN BABY 8:30pm" and sets four lines in a quarter-width card. Clamping
+     is a display decision. ⛔ Trimming the stored name would be inventing a
+     short title on the organiser's behalf. */
+  assert.match(CODE, /\.ypz-ve-name\{[^']*-webkit-line-clamp:2/);
+  assert.match(CODE, /\.ypz-ve-desc\{[^']*-webkit-line-clamp:4/);
+  assert.doesNotMatch(CODE, /ev\.name\.(slice|substring|replace)/,
+    'the name is drawn whole and clipped by CSS, never edited');
 });
 
 test('⚠ the default theme is LIGHT — a preset must state colour AND background', () => {

@@ -50,7 +50,7 @@ import { eventSpan } from './eventDays';
 import { eventCardImage } from './eventImage';
 import { displayTown } from './formatLocation';
 import { PUBLIC_ORIGIN } from './qrDestinations';
-import { readDate, readEndDate, readClock } from '../screens/event/eventViewModel';
+import { readDate, readEndDate, readClock, readGenres } from '../screens/event/eventViewModel';
 
 /** How many events the feed answers with when the caller does not say. */
 export const DEFAULT_LIMIT = 20;
@@ -72,7 +72,7 @@ export const DESCRIPTION_MAX = 280;
  */
 export const PUBLIC_EVENT_FIELDS = Object.freeze([
   'id', 'name', 'url', 'date', 'end_date', 'start_time', 'doors',
-  'image', 'description', 'venue_name',
+  'image', 'description', 'genres', 'venue_name',
 ]);
 
 /** ⛔ Same rule, for the venue block. `location` is DELIBERATELY ABSENT — on a
@@ -209,6 +209,13 @@ export function publicEvent(event, { venueName = null, origin = PUBLIC_ORIGIN } 
     doors: readClock(cfg.doors, cfg.doors_ampm || cfg.ampm),
     image: eventCardImage(event),
     description: publicDescription(cfg.bio),
+    /* ⚠ `readGenres` is the app's own reader: one stored string, separated by
+       `·` OR `,` depending on which generation wrote it, deduplicated
+       case-insensitively. ⛔ Not `cfg.genres.split(',')` — "House, Funky House,
+       Reworks  " is a live row and the naive split keeps the trailing spaces.
+       An ARRAY, so the surface displaying it chooses the separator; a joined
+       string here would be this module deciding a venue's typography. */
+    genres: readGenres(cfg.genres),
     venue_name: venueName,
   };
 }
