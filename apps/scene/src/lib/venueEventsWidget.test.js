@@ -61,9 +61,13 @@ test('⛔⛔ remote text is never written as markup', () => {
   /* Event names and blurbs are typed by organisers and scraped from posters.
      This code runs inside SOMEBODY ELSE'S SITE, so `<script>` in an event name
      would execute in their origin, against their visitors. */
+  /* ⭐ ZERO, not "one for the stylesheet". A <style> takes textContent just as
+     happily, so the exception this file used to carry is gone and the rule is
+     now absolute — there is no innerHTML here at all to argue about. */
   const innerHtml = CODE.match(/\.innerHTML\s*=/g) || [];
-  assert.equal(innerHtml.length, 1, 'exactly one innerHTML is allowed, and it is the stylesheet');
-  assert.match(CODE, /el\.innerHTML\s*=\s*CSS;/, 'the one innerHTML assigns the CSS constant, nothing remote');
+  assert.equal(innerHtml.length, 0, 'no innerHTML at all — stylesheets go in by textContent');
+  assert.match(CODE, /el\.textContent = CSS;/);
+  assert.match(CODE, /el\.textContent = FRAME_CSS;/);
   assert.doesNotMatch(CODE, /outerHTML|insertAdjacentHTML|document\.write/);
   assert.doesNotMatch(CODE, /\beval\s*\(|new\s+Function\s*\(/);
   /* Everything a reader sees goes through textContent. */
@@ -134,7 +138,7 @@ test('⭐ a little divider rule stands between the date and the heading', () => 
      run it the full height of the card now the blurb sits in the title column. */
   assert.match(CODE, /\.ypz-ve-head\{display:flex;align-items:flex-start\}/);
   /* Its colour is a theme's business — a black hairline is invisible on dark. */
-  for (const theme of ['light', 'dark', 'plain']) {
+  for (const theme of ['light', 'open', 'dark', 'plain']) {
     assert.ok(CODE.includes(`.ypz-ve--theme-${theme} .ypz-ve-date{border-right-color:`),
       `${theme} does not colour the divider`);
   }
@@ -220,10 +224,37 @@ test('the venue line names the venue and its town, whichever the feed gave', () 
   assert.match(CODE, /\[venue\.name, venue\.town\]\.filter\(Boolean\)\.join\(', '\)/);
 });
 
+test('⛔⛔ the scrollbar is hidden ONLY in a frame that is nothing but this widget', () => {
+  /* ⚠ THIS REVERSES AN EARLIER ABSOLUTE. The file used to be forbidden from
+     naming `html` or `body` at all, because it drops into pages we do not own
+     and their scrollbar is the reader's only clue the page continues. A Wix
+     HTML embed is not such a page — it is a frame containing only this widget —
+     so the rule becomes a GATE rather than a ban. ⛔ The gate is the whole
+     safety property; without it this is the hostile version. */
+  assert.match(CODE, /function frameIsOnlyThisWidget\(\)/);
+  assert.match(CODE, /if \(!frameIsOnlyThisWidget\(\)\) return;/);
+
+  /* ⛔ BOTH HALVES. Being framed is not enough — a site may frame a page of its
+     own — so everything outside our mounts is inspected and any real content
+     disqualifies the document. */
+  assert.match(CODE, /framed = window\.self !== window\.top/);
+  assert.match(CODE, /if \(!framed \|\| !document\.body\) return false/);
+  assert.match(CODE, /if \(!inAMount\(content\[i\]\)\) return false/);
+  for (const tag of ['img', 'iframe', 'form', 'h1', 'p', 'a', 'button', 'table']) {
+    assert.ok(/'img,iframe[^']*'/.test(CODE) && CODE.includes(tag), `${tag} is not screened for`);
+  }
+
+  /* ⭐ Checked BEFORE anything renders, while the body still holds only the
+     mount and our script tag — afterwards the body is full of our own cards. */
+  const startBody = CODE.slice(CODE.indexOf('function start()'));
+  assert.ok(startBody.indexOf('hideFrameScrollbar()') < startBody.indexOf('querySelectorAll(SELECTOR)'),
+    'the frame test must run before the mounts are filled with our own cards');
+});
+
 /* ── the presets ───────────────────────────────────────────────────────────── */
 
 test('⭐ the three option tables are closed sets, not free text', () => {
-  assert.match(CODE, /var THEMES = \{ light: 1, dark: 1, plain: 1 \}/);
+  assert.match(CODE, /var THEMES = \{ light: 1, open: 1, dark: 1, plain: 1 \}/);
   assert.match(CODE, /var LAYOUTS = \{ grid: 1, posters: 1, list: 1 \}/);
   assert.match(CODE, /var COLUMNS = \{ auto: 1, '1': 1, '2': 1, '3': 1, '4': 1 \}/);
 });
@@ -257,6 +288,17 @@ test('⭐ the LIGHT theme paints its own ground, and DARK deliberately does not'
     "dark must not paint a panel over the venue's own photograph");
 });
 
+test('⭐⭐ OPEN states its ink TWICE — outside the card and inside it', () => {
+  /* Cream cards on the venue's own dark background. The footer button and the
+     credit sit OUTSIDE the cards on that background and need light text; inside
+     a card the ground is cream and needs dark. Stating only one is exactly how
+     the original default came to be black text over a photograph. */
+  assert.match(CODE, /\.ypz-ve--theme-open\{color:#f4f1ec;padding:[\d px]+\}/);
+  assert.match(CODE, /\.ypz-ve--theme-open \.ypz-ve-card\{background:#faf8f4;color:#1a1714/);
+  /* ⛔ And it paints no ground — that is what separates it from `light`. */
+  assert.doesNotMatch(CODE, /\.ypz-ve--theme-open\{[^']*background/);
+});
+
 test('⚠ title and blurb are CLAMPED, and the widget never rewrites either', () => {
   /* A comp says "MADSPIN BABY"; the row is called "The Friday Mix Up feat
      MADSPiN BABY 8:30pm" and sets four lines in a quarter-width card. Clamping
@@ -272,7 +314,7 @@ test('⚠ the default theme is LIGHT — a preset must state colour AND backgrou
   /* The widget shipped transparent-and-inherit, which in an iframe embed
      inherits nothing: black text over whatever photograph is behind it. Every
      theme now states both halves. */
-  for (const theme of ['light', 'dark', 'plain']) {
+  for (const theme of ['light', 'open', 'dark', 'plain']) {
     assert.ok(CODE.includes(`.ypz-ve--theme-${theme}{color:`), `${theme} states no text colour`);
     assert.ok(CODE.includes(`.ypz-ve--theme-${theme} .ypz-ve-card{background:`), `${theme} states no card background`);
   }
@@ -372,11 +414,10 @@ test('⭐ the wrapper hides its scrollbar — and venue-events.js never could', 
   assert.match(PAGE, /scrollbar-width: none/);
   assert.match(PAGE, /::-webkit-scrollbar/);
 
-  /* ⛔⛔ AND IT STAYS IN THE WRAPPER. `venue-events.js` drops into pages we do
-     not own, so it must never reach for `html` or `body` — the scrollbar it
-     would hide there belongs to somebody else's site. */
-  assert.doesNotMatch(CODE, /scrollbar/i);
-  assert.doesNotMatch(CODE, /'(html|body)[^']*\{/);
+  /* ⚠ `venue-events.js` MAY now hide a scrollbar, but only inside a frame whose
+     entire content is this widget — see the dedicated test below. On a real
+     website that bar is the reader's only clue the page continues. */
+  assert.match(CODE, /var FRAME_CSS = 'html\{scrollbar-width:none/);
 });
 
 test('⛔ the wrapper puts the query string in an ATTRIBUTE, never in markup', () => {

@@ -11,7 +11,7 @@
  * a typo must render the default look, ⛔ never an error and ⛔ never nothing.
  *
  *   data-yespleez-venue    the venue profile id. The only required one.
- *   data-yespleez-theme    light (default) · dark · plain
+ *   data-yespleez-theme    light (default) · open · dark · plain
  *   data-yespleez-layout   grid (default) · posters · list
  *   data-yespleez-columns  auto (default) · 1 · 2 · 3 · 4
  *   data-yespleez-accent   #rrggbb — colours the genre line under each title
@@ -96,7 +96,7 @@
   /* ⛔ THE ALLOWED VALUES, AS TABLES. An option is looked UP, never trusted —
      anything not listed becomes the default, so a typo in a pasted snippet
      renders the standard look rather than an unstyled pile. */
-  var THEMES = { light: 1, dark: 1, plain: 1 };
+  var THEMES = { light: 1, open: 1, dark: 1, plain: 1 };
   var LAYOUTS = { grid: 1, posters: 1, list: 1 };
   var COLUMNS = { auto: 1, '1': 1, '2': 1, '3': 1, '4': 1 };
 
@@ -209,6 +209,29 @@
     '.ypz-ve--theme-dark .ypz-ve-more{border-color:rgba(255,255,255,.3)}',
     '.ypz-ve--theme-dark .ypz-ve-more:hover{border-color:#f4f1ec}',
 
+    /* ⭐⭐ OPEN — CREAM CARDS ON THE VENUE'S OWN BACKGROUND, and the
+       combination the first three themes could not express. `light` gives cream
+       cards but paints a cream PANEL under them; `dark` leaves the background
+       alone but the cards go near-black. A venue with a dark, photographic site
+       that wants pale cards floating on it had no word to say so.
+
+       ⚠ It is called `open` and ⛔ not `paper`, because the owner used "paper"
+       for the cream GROUND `light` paints — the word had already been spent on
+       the thing this theme removes.
+
+       ⚠⚠ THE INK IS SET TWICE, DELIBERATELY. Light text on the mount, because
+       the footer button and the credit sit OUTSIDE the cards on the venue's own
+       dark background; dark text on the card, because inside it the ground is
+       cream. Stating only one is how the original default came to be black text
+       over a photograph. */
+    '.ypz-ve--theme-open{color:#f4f1ec;padding:26px 0 4px}',
+    '.ypz-ve--theme-open .ypz-ve-card{background:#faf8f4;color:#1a1714;border-color:rgba(0,0,0,.10);box-shadow:0 2px 6px rgba(0,0,0,.18)}',
+    '.ypz-ve--theme-open .ypz-ve-date{border-right-color:rgba(0,0,0,.13)}',
+    '.ypz-ve--theme-open .ypz-ve-cta{background:#1c1917;color:#fff}',
+    '.ypz-ve--theme-open .ypz-ve-card:hover .ypz-ve-cta{background:#000}',
+    '.ypz-ve--theme-open .ypz-ve-more{border-color:rgba(255,255,255,.3)}',
+    '.ypz-ve--theme-open .ypz-ve-more:hover{border-color:#f4f1ec}',
+
     /* `plain` is the original behaviour, kept deliberately: a page that wants
        the widget to vanish into it, or one styling the classes itself. */
     '.ypz-ve--theme-plain{color:inherit}',
@@ -267,7 +290,71 @@
     if (document.getElementById(STYLE_ID)) return;
     var el = document.createElement('style');
     el.id = STYLE_ID;
-    el.innerHTML = CSS;              // a constant, defined above. ⛔ Nothing remote.
+    el.textContent = CSS;            // a constant, defined above. ⛔ Nothing remote.
+    document.head.appendChild(el);
+  }
+
+  /**
+   * ⛔⛔ THE ONLY RULES IN THIS FILE THAT NAME `html` OR `body`, AND THEY ARE
+   * GATED. A scrollbar down the right of an events panel reads as a broken
+   * embed, but the scrollbar on a real website belongs to that website and
+   * hiding it would be hostile — it is the reader's only clue that a page
+   * continues. So this is applied ⛔ never by default, and ⭐ only inside a
+   * frame that contains nothing but this widget.
+   *
+   * ⚠ THE PAGE STILL SCROLLS. Wheel, trackpad, touch and keyboard all work;
+   * only the bar is hidden. ⚠⚠ Which means content below the frame's fold has
+   * no visual affordance at all — hiding the bar does NOT make the content fit,
+   * and the real fix for an embed that overflows is an element tall enough for
+   * it, or a smaller `limit`.
+   */
+  var FRAME_CSS = 'html{scrollbar-width:none;-ms-overflow-style:none}'
+    + 'html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}';
+
+  var FRAME_STYLE_ID = 'yespleez-venue-events-frame-style';
+
+  /**
+   * Is this document a frame whose entire content is this widget?
+   *
+   * ⛔ BOTH HALVES ARE REQUIRED. Being in an iframe is not enough — a site may
+   * frame a whole page of its own. So every element outside our mounts is
+   * inspected, and anything that could be somebody's actual content disqualifies
+   * the document. ⭐ Checked BEFORE the widget renders, when the body holds
+   * nothing but the mount and the script tag that loaded us.
+   */
+  function frameIsOnlyThisWidget() {
+    var framed;
+    try {
+      framed = window.self !== window.top;
+    } catch {
+      framed = true;               // a cross-origin parent throws — we are framed
+    }
+    if (!framed || !document.body) return false;
+
+    var mounts = document.querySelectorAll(SELECTOR);
+    if (!mounts.length) return false;
+
+    var inAMount = function (node) {
+      for (var m = 0; m < mounts.length; m++) if (mounts[m].contains(node)) return true;
+      return false;
+    };
+
+    /* Anything here, outside our own mounts, means the frame is somebody's page. */
+    var content = document.body.querySelectorAll(
+      'img,iframe,video,audio,canvas,form,input,table,h1,h2,h3,h4,h5,h6,p,a,button,ul,ol,section,article,header,footer,nav',
+    );
+    for (var i = 0; i < content.length; i++) {
+      if (!inAMount(content[i])) return false;
+    }
+    return true;
+  }
+
+  function hideFrameScrollbar() {
+    if (document.getElementById(FRAME_STYLE_ID)) return;
+    if (!frameIsOnlyThisWidget()) return;
+    var el = document.createElement('style');
+    el.id = FRAME_STYLE_ID;
+    el.textContent = FRAME_CSS;      // a constant. ⛔ Nothing remote, nothing typed.
     document.head.appendChild(el);
   }
 
@@ -533,6 +620,9 @@
 
   function start() {
     ensureStyle();
+    /* ⭐ BEFORE the mounts are filled — the test reads what else is in the body,
+       and after rendering the body is full of our own cards. */
+    hideFrameScrollbar();
     var mounts = document.querySelectorAll(SELECTOR);
     for (var i = 0; i < mounts.length; i++) mountOne(mounts[i]);
   }
