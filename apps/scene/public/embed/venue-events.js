@@ -162,6 +162,13 @@
     '.ypz-ve-foot{margin:26px 0 0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}',
     '.ypz-ve-more{grid-column:2;display:inline-block;text-align:center;font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;padding:13px 30px;border:1px solid;border-radius:2px;text-decoration:none;color:inherit}',
     '.ypz-ve-credit{grid-column:3;justify-self:end;font-size:10.5px;opacity:.6;margin:0}',
+    /* ⚠ THE THREE-COLUMN FOOTER IS A DESKTOP SHAPE. On a phone the credit
+       column squeezes the button until its label wraps to three lines and the
+       credit itself stacks a word per line. Below the first breakpoint the row
+       becomes a column: full-width button, credit centred under it. */
+    '@media (max-width:559px){.ypz-ve-foot{grid-template-columns:1fr;justify-items:center;gap:14px}}',
+    '@media (max-width:559px){.ypz-ve-more{grid-column:1;width:100%;padding-left:12px;padding-right:12px}}',
+    '@media (max-width:559px){.ypz-ve-credit{grid-column:1;justify-self:center}}',
     '.ypz-ve-credit a{color:inherit;font-weight:700;text-decoration:none}',
     '.ypz-ve-note{font-size:14px;opacity:.75;margin:0;padding:8px 0}',
 
@@ -558,7 +565,9 @@
        ⚠ Only when the feed actually named a venue url — ⛔ never a dead button. */
     var venueUrl = data.venue && safeUrl(data.venue.url);
     if (venueUrl) {
-      var label = data.venue.name ? 'See all upcoming at ' + data.venue.name : 'See all upcoming events';
+      var label = data.venue.name
+        ? "See more about what's coming up at " + data.venue.name
+        : "See more about what's coming up";
       var more = el('a', 'ypz-ve-more', label);
       more.href = venueUrl;
       more.target = '_blank';
