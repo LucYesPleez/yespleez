@@ -39,7 +39,7 @@ import { setTimesEnabled, withSetTimesEnabled } from '../lib/eventSetTimes';
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
    no longer WRITES membership, so `planAddToBill`/`addToBill` went with the
    action. Reading the bill is triage; changing it is the workspace. */
-import { findExistingMember, pipelineApplications } from '../lib/lineupFromApplication';
+import { findExistingMember, pipelineApplications, canDeclineApplication, onBillForApplication } from '../lib/lineupFromApplication';
 /* ⭐⭐ THE SAME EXECUTOR THE EVENT PAGE USES. ⛔ Not a copy of its rules — this
    screen may not decide what a removal destroys or who hears about it. */
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../lib/lineupActions';
@@ -502,6 +502,34 @@ export default function HostDashboard({ userId: userIdProp }) {
      lib/lineupFromApplication, called from EventHostView. */
 
   async function respondApp(appId, status, artistId, eventName) {
+    /**
+     * ── ⛔⛔ THE ACTION BOUNDARY, NOT JUST THE BUTTON ────────────────────────
+     *
+     * ⚠⚠ HIDING THE CONTROL IS NOT ENOUGH, because this function has TWO
+     * callers: `AppCard`'s onRespond, and `handleEnquiryRespond`, which serves
+     * the ENQUIRIES panel where applications are rendered through
+     * `EnquiryCard`. That second path is safe today only by accident of
+     * COMPONENT GATING — `EnquiryCard` has no `accepted` branch, so it never
+     * offers decline there — which is a different rule that could change
+     * without anyone noticing this one.
+     *
+     * ⭐ The same question `AppCard` asks to render ACCEPTED · ON THE BILL, and
+     * the same `lineups` it renders from, so the guard and the UI cannot
+     * disagree. ⛔ Opens no query: `buildHostLineup` is handed `on_bill`
+     * members only.
+     *
+     * ⛔ DECLINE ONLY. Every other response is untouched — accepting or
+     * shortlisting somebody already on the bill is not what this prevents.
+     */
+    if (status === 'declined') {
+      const app = allApps.find(a => a.id === appId);
+      const bucket = normaliseStatus({ status: app?.status, direction: 'incoming' });
+      const onBill = app ? onBillForApplication(app, lineups, appProfiles[appId] || null) : false;
+      /* ⛔ Silent: the control that could reach this is already gone, so there
+         is no message to attach to a press that cannot happen. Reaching here
+         means a caller bypassed the rule, not that the host did something. */
+      if (!canDeclineApplication(bucket, onBill)) return;
+    }
     await supabase.from('applications').update({ status }).eq('id', appId);
     setAllApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
     if (!artistId) return;
@@ -2224,7 +2252,24 @@ function AppCard({ app, prof, onRespond, onBill = false, eventName, viewerProfil
             <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
               onClick={() => respond('shortlisted')} disabled={busy} />
           )}
-          {bucket !== 'declined' && (
+          {/**
+            * ⛔⛔ NOT WHILE THEY ARE ON THE BILL. This gated on
+            * `bucket !== 'declined'` alone, so an ACCEPTED row offered DECLINE
+            * directly beneath its own ACCEPTED · ON THE BILL label — which is
+            * how Madds came to be `declined` while on the Bass Heavy bill.
+            * `onBill` was already computed and already displayed; only the
+            * button ignored it.
+            *
+            * ⭐ `canDeclineApplication` is the rule `EventHostView`'s three
+            * surfaces already implement. ⛔ It does NOT make `accepted`
+            * terminal: accepted-and-NOT-on-the-bill still declines, which is
+            * the orphan cleanup.
+            *
+            * ⛔ NO REMOVE FROM LINEUP HERE. This screen is triage; removal is a
+            * bill operation and belongs to EventHostView / lineupActions. The
+            * honest answer on this surface is to offer nothing.
+            */}
+          {canDeclineApplication(bucket, onBill) && (
             <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
               onClick={() => respond('declined')} disabled={busy} />
           )}

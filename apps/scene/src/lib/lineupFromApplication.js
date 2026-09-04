@@ -104,6 +104,57 @@ export function pipelineApplications(apps = [], onBill = [], profileFor = () => 
   });
 }
 
+/**
+ * ── ⭐⭐ SOMEBODY ON THE BILL IS NOT SOMEBODY YOU DECLINE ────────────────────
+ *
+ * ⛔⛔ MADDS ENDED UP `declined` WHILE ON THE BASS HEAVY BILL. `HostDashboard`'s
+ * AppCard gated DECLINE on `bucket !== 'declined'` alone, so an ACCEPTED row
+ * still offered it — under a label that said ACCEPTED · ON THE BILL, in green,
+ * two lines above the button.
+ *
+ * ⭐ THE RULE THE OTHER THREE SURFACES ALREADY IMPLEMENT, three different ways:
+ * `EventHostView`'s SHORTLIST branches on `isMember` and substitutes REMOVE
+ * FROM EVENT; its PIPELINE and ACCEPTED tabs exclude members by list
+ * construction. This is that rule, written once so a fourth surface cannot
+ * disagree with the first three.
+ *
+ * ⛔⛔ `accepted` IS NOT GLOBALLY TERMINAL, and this must not make it so.
+ * ACCEPTED-but-NOT-on-the-bill is the orphan cleanup — "You told these artists
+ * yes and they were never added to the lineup" — and declining there is the
+ * whole point of that tab. ⚠ Suppressing DECLINE on every accepted row would
+ * silently disable it.
+ *
+ * ⭐ ON THE BILL, ANY BUCKET. Not just `accepted`: a `seen` or `shortlisted`
+ * application belonging to somebody already booked is the same situation, and
+ * SHORTLIST's `isMember` branch already suppresses it for every status. Bill
+ * management is a lineup action; ⛔ this module does not perform one.
+ */
+export function canDeclineApplication(bucket, onBill = false) {
+  if (bucket === 'declined') return false;   // already the answer
+  if (onBill) return false;                  // Remove from lineup, not decline
+  return true;
+}
+
+/**
+ * Is this application's applicant on the bill of its own event?
+ *
+ * ⭐ THE SAME QUESTION `HostDashboard` ALREADY ASKS to render ACCEPTED · ON THE
+ * BILL, extracted so the action boundary can ask it too. ⛔ It opens no query:
+ * `lineups` is the shape `buildHostLineup` already returns, and that builder is
+ * handed `on_bill` members only — the mixed array is refused upstream.
+ *
+ * ⚠ SCOPED TO THE APPLICATION'S OWN EVENT. `lineups` spans every event the host
+ * runs, and `findExistingMember` asks only "is this the same person", so
+ * without the group lookup a resident booked on another night would answer for
+ * this one.
+ */
+export function onBillForApplication(app, lineups = [], profile = null) {
+  if (!app?.event_id) return false;
+  const group = (lineups || []).find(g => g?.event?.id === app.event_id);
+  const members = (group?.members || []).map(r => r?.member).filter(Boolean);
+  return !!findExistingMember(app, members, profile);
+}
+
 export function findExistingMember(app, members = [], profile = null) {
   if (!app) return null;
   /**

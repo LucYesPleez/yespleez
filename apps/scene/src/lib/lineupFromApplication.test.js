@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { planAddToBill, addToBill, findExistingMember, pipelineApplications } from './lineupFromApplication.js';
+import {
+  planAddToBill, addToBill, findExistingMember, pipelineApplications,
+  canDeclineApplication, onBillForApplication,
+} from './lineupFromApplication.js';
 import { RESOLVED_BY_BOOKING } from './answerOpenRequests.js';
 
 /**
@@ -284,4 +287,74 @@ test('the name key still hides a hand-typed member of the same name', () => {
   const anon = { id: 'a-10', event_id: 'ev-1', artist_id: null, from_profile_id: null, artist_name: 'Cosmatik', status: 'new' };
   const typed = { id: 'm-10', artist_profile_id: null, artist_id: null, artist_name: 'Cosmatik', status: 'on_bill' };
   assert.deepEqual(pipelineApplications([anon], [typed]), []);
+});
+
+/**
+ * ── ⛔⛔ SOMEBODY ON THE BILL IS NOT SOMEBODY YOU DECLINE ────────────────────
+ *
+ * Madds ended up `declined` while on the Bass Heavy bill because
+ * `HostDashboard`'s AppCard gated DECLINE on `bucket !== 'declined'` alone.
+ *
+ * ⚠ TESTED AS A PREDICATE, ⛔ not by rendering. This project has no React
+ * renderer — no jsdom, no testing-library — so a "does the button appear" test
+ * would have to read the JSX as text, which this repo has been bitten by three
+ * times. The rule is therefore extracted and BOTH the button and the action
+ * boundary call it, which is the property that actually needs pinning: they
+ * cannot disagree.
+ */
+
+const madds  = { id: 'a-madds', event_id: 'ev-bass', from_profile_id: 'p-madds', artist_name: 'Madds', status: 'accepted' };
+const onBillLineups = [{ event: { id: 'ev-bass' }, members: [{ member: { id: 'm-madds', artist_profile_id: 'p-madds', artist_name: 'Madds', status: 'on_bill' } }] }];
+
+test('⛔⛔ 1 · accepted + ON THE BILL cannot be declined', () => {
+  assert.equal(canDeclineApplication('accepted', true), false);
+});
+
+test('⭐⭐ 2 · accepted + NOT on the bill STILL declines — the orphan cleanup', () => {
+  /* ⛔ THE OVER-BROAD FIX FAILS HERE. Suppressing DECLINE on every accepted row
+     would silently disable the ACCEPTED tab, whose whole purpose is "you told
+     these artists yes and they were never added to the lineup". */
+  assert.equal(canDeclineApplication('accepted', false), true);
+});
+
+test('⭐ on the bill suppresses decline in EVERY bucket, not just accepted', () => {
+  // SHORTLIST's `isMember` branch already behaves this way for any status.
+  for (const b of ['new', 'seen', 'shortlisted', 'accepted']) {
+    assert.equal(canDeclineApplication(b, true), false, `${b} + on bill`);
+    assert.equal(canDeclineApplication(b, false), true, `${b} + off bill`);
+  }
+});
+
+test('⛔ an already-declined row offers nothing, on the bill or off it', () => {
+  assert.equal(canDeclineApplication('declined', false), false);
+  assert.equal(canDeclineApplication('declined', true), false);
+});
+
+test('⭐⭐ 3 · the action boundary sees Madds on the Bass Heavy bill', () => {
+  assert.equal(onBillForApplication(madds, onBillLineups, null), true);
+  assert.equal(canDeclineApplication('accepted', onBillForApplication(madds, onBillLineups, null)), false);
+});
+
+test('⭐⭐ 4 · an accepted applicant on nobody’s bill is still declinable', () => {
+  const orphan = { ...madds, id: 'a-orphan', from_profile_id: 'p-orphan' };
+  assert.equal(onBillForApplication(orphan, onBillLineups, null), false);
+  assert.equal(canDeclineApplication('accepted', onBillForApplication(orphan, onBillLineups, null)), true);
+});
+
+test('⚠⚠ SCOPED TO THE EVENT — booked on another night does not protect this one', () => {
+  /* `lineups` spans every event the host runs and `findExistingMember` asks
+     only "is this the same person", so without the group lookup a resident
+     booked on Friday would answer for Saturday. */
+  const otherNight = [{ event: { id: 'ev-other' }, members: onBillLineups[0].members }];
+  assert.equal(onBillForApplication(madds, otherNight, null), false);
+});
+
+test('⛔ an application naming no event is never treated as on the bill', () => {
+  assert.equal(onBillForApplication({ ...madds, event_id: null }, onBillLineups, null), false);
+  assert.equal(onBillForApplication(null, onBillLineups, null), false);
+});
+
+test('no lineups loaded yet reads as not-on-bill', () => {
+  assert.equal(onBillForApplication(madds, [], null), false);
+  assert.equal(onBillForApplication(madds, undefined, null), false);
 });
