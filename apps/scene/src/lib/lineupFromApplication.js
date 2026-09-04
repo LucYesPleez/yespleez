@@ -31,6 +31,74 @@
 /* ⭐ THE CAP LIVES WITH THE BILL, ⛔ not here. `hostLineup` owns what the bill
    IS; this module owns one arrow into it and asks that module the question. */
 import { billCapacity, billFullMessage } from './hostLineup';
+import { normaliseStatus, PIPELINE_BUCKETS } from './enquiryUtils';
+
+/**
+ * ── ⭐⭐ THE PIPELINE IS WHAT IS STILL WAITING, AND SOMEBODY ON THE BILL IS NOT ─
+ *
+ * ⛔⛔ A DEFENSIVE INVARIANT, ⛔ NOT THE FIX (owner, 2026-09-04). The real
+ * repair is that booking somebody resolves what they asked; this guard exists
+ * so that when a row slips through anyway — a route nobody remembered, a write
+ * that RLS filtered silently, a legacy row from before the arrow existed — the
+ * host is not shown a person as awaiting their decision while that same person
+ * stands on the bill two tabs away. ⭐ It must therefore stay even once every
+ * write path is centralised: an invariant that is only true while the code is
+ * correct is not an invariant.
+ *
+ * ⚠ Cosmatik on `YesPleez pres` (17 Oct) was in LINEUP and in PIPELINE at once,
+ * and both readings were honest — `lineup_members` and `applications` are
+ * different tables and nothing compared them.
+ *
+ * ⛔ ON-BILL ONLY. A SHORTLISTED member is somebody the host is considering and
+ * has decided nothing about, so their application genuinely is still waiting;
+ * hiding it would be the same class of lie in the other direction. Pass the
+ * bill, ⛔ never the mixed array.
+ *
+ * ⚠⚠ SCOPED BY EVENT, so a MIXED list is safe. `HostDashboard` holds every
+ * application and every bill member across all of a host's events at once, and
+ * `findExistingMember` asks only "is this the same person" — it has no idea
+ * which night it is being asked about. Without this scoping a resident booked
+ * on next Friday would silently answer for their application to a different
+ * night, which is a far worse lie than the one being fixed.
+ *
+ * @param apps       applications, for one event or many
+ * @param onBill     `lineup_members` with status 'on_bill', for one event or many
+ * @param profileFor (app) => the applicant's profile row, for the name key
+ */
+export function pipelineApplications(apps = [], onBill = [], profileFor = () => null) {
+  return (apps || []).filter(a => {
+    if (!PIPELINE_BUCKETS.includes(normaliseStatus({ status: a?.status, direction: 'incoming' }))) {
+      return false;
+    }
+    /**
+     * ⛔ Only members of THIS application's event may answer for it.
+     *
+     * ⚠⚠ A MEMBER WITH NO `event_id` IS ALREADY SCOPED BY ITS CALLER, ⛔ not
+     * unknown. `useEventData` selects the bill with `.eq('event_id', id)` and
+     * therefore never selects the column — so requiring it here would filter
+     * every member away and quietly disable the guard on the event page, which
+     * is the surface it was written for. `HostDashboard` fetches across events
+     * and does select it, so the mixed list is scoped properly there.
+     */
+    const sameNight = (onBill || []).filter(m =>
+      /**
+       * ⛔⛔ ONLY A ROW EXPLICITLY `on_bill` MAY HIDE AN APPLICANT, and this is
+       * checked here rather than trusted from the caller. `findExistingMember`
+       * answers "is this the same person" and knows nothing about status, so
+       * handing it a mixed array would let a SHORTLISTED member — somebody the
+       * host has decided nothing about — hide that same person's undecided
+       * application. ⚠ That is the same lie in the other direction: it would
+       * remove a real question from the queue.
+       *
+       * ⚠ Strict on purpose. Both callers select `status`, so a row without one
+       * is not a shape either of them produces, and refusing to hide on it errs
+       * towards showing a contradiction rather than concealing a decision.
+       */
+      m?.status === 'on_bill'
+      && (m?.event_id == null || !a?.event_id || m.event_id === a.event_id));
+    return !findExistingMember(a, sameNight, profileFor(a) || null);
+  });
+}
 
 export function findExistingMember(app, members = [], profile = null) {
   if (!app) return null;

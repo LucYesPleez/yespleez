@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { planAddToBill, addToBill, findExistingMember } from './lineupFromApplication.js';
+import { planAddToBill, addToBill, findExistingMember, pipelineApplications } from './lineupFromApplication.js';
 
 /**
  * THE ARROW THAT DID NOT EXIST.
@@ -175,4 +175,58 @@ test('a refused plan touches nothing at all', async () => {
   const res = await addToBill(db, planAddToBill(declinedApp, null, []));
   assert.equal(res.ok, false);
   assert.deepEqual(db.calls, []);
+});
+
+/**
+ * ── ⭐⭐ NOBODY ON THE BILL IS AWAITING A DECISION ───────────────────────────
+ *
+ * Cosmatik was on the LINEUP of `YesPleez pres` and in its PIPELINE at once.
+ * ⛔ This guard is DEFENSIVE and stays even once every write path resolves the
+ * request properly: an invariant that only holds while the code is correct is
+ * not an invariant.
+ */
+
+const undecided = { id: 'a-9', event_id: 'ev-1', artist_id: 'u-9', from_profile_id: 'p-9', artist_name: 'Cosmatik', status: 'seen' };
+const onBillRow = { id: 'm-9', artist_profile_id: 'p-9', artist_id: 'u-9', artist_name: 'Cosmatik', status: 'on_bill' };
+
+test('an undecided application with nobody on the bill still shows', () => {
+  assert.deepEqual(pipelineApplications([undecided], []).map(a => a.id), ['a-9']);
+});
+
+test('⭐⭐ the same person on the bill is no longer awaiting a decision', () => {
+  assert.deepEqual(pipelineApplications([undecided], [onBillRow]), []);
+});
+
+test('⛔ a SHORTLISTED member is still undecided — pass the bill, not the mixed array', () => {
+  // Being considered is not being answered. Hiding this would be the same lie
+  // in the other direction.
+  const shortlistedMember = { ...onBillRow, status: 'shortlisted' };
+  assert.deepEqual(
+    pipelineApplications([undecided], [shortlistedMember]).map(a => a.id), ['a-9'],
+    'the caller passes on_bill rows; a shortlisted one reaching here must not hide anybody');
+});
+
+test('⛔ a decided application never appears, bill or no bill', () => {
+  assert.deepEqual(pipelineApplications([accepted, declinedApp], []), []);
+});
+
+test('⚠⚠ SCOPED BY EVENT — booked on Friday does not answer for Saturday', () => {
+  const otherNight = { ...onBillRow, event_id: 'ev-2' };
+  const thisNight  = { ...undecided, event_id: 'ev-1' };
+  assert.deepEqual(
+    pipelineApplications([thisNight], [otherNight]).map(a => a.id), ['a-9'],
+    'a member of another event must never hide this event’s applicant');
+});
+
+test('⚠⚠ a member row with no event_id is trusted as caller-scoped', () => {
+  // `useEventData` selects the bill with .eq('event_id', id) and so never
+  // selects the column. Requiring it would silently disable the guard on the
+  // event page, which is the surface it was written for.
+  assert.deepEqual(pipelineApplications([undecided], [onBillRow]), []);
+});
+
+test('the name key still hides a hand-typed member of the same name', () => {
+  const anon = { id: 'a-10', event_id: 'ev-1', artist_id: null, from_profile_id: null, artist_name: 'Cosmatik', status: 'new' };
+  const typed = { id: 'm-10', artist_profile_id: null, artist_id: null, artist_name: 'Cosmatik', status: 'on_bill' };
+  assert.deepEqual(pipelineApplications([anon], [typed]), []);
 });
