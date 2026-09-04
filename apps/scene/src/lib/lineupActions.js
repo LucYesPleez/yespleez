@@ -502,6 +502,16 @@ export async function assignMemberToSlot(db, { slotId, eventId, memberId, status
  * the performances were deleted, and inventing new ones would offer slots the
  * organiser has not chosen and the artist has not agreed to. They return where
  * everyone starts — on the bill, with no set time.
+ *
+ * ⚠⚠ THE ONLY ROUTE ONTO A BILL THAT DOES NOT RESOLVE OPEN REQUESTS, because it
+ * is the only one with NO CALLERS — nothing in the app invokes it, so it cannot
+ * currently put anybody anywhere. The other four go through
+ * `lib/answerOpenRequests` (see `EventHostView` and `FillSlotModal`).
+ *
+ * ⛔ IF YOU GIVE THIS FUNCTION A CALLER, WIRE IT TOO. It takes only a
+ * `memberId`, so it will need the event and the member's `artist_profile_id`
+ * threading in; a bill route that silently skips the answer is exactly the gap
+ * that left Cosmatik on a lineup and in the pipeline at the same time.
  */
 export async function restoreToBill(db, memberId) {
   if (!memberId) return { ok: false, error: 'no member' };

@@ -29,6 +29,7 @@ import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot, planPublishSetTimes, applyPublishSetTimes, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember, pipelineApplications } from '../../lib/lineupFromApplication';
+import { answerOpenRequests, RESOLVED_BY_BOOKING } from '../../lib/answerOpenRequests';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
 /**
@@ -368,6 +369,30 @@ export default function EventHostView({
         data:    { event_id: id, event_name: event.name, lineup_member_id: memberId },
       });
     }
+    /**
+     * ⭐⭐ AND ANYTHING ELSE THEY HAD OPEN FOR THIS NIGHT. Somebody may have
+     * applied AND enquired; the application above is answered by the plan, the
+     * rest by this.
+     *
+     * ⭐⭐ AND IT IS THE RETRY NET FOR THIS ROUTE'S OWN APPLICATION. There is no
+     * `skipApplicationId` any more, and that is deliberate: both writers now
+     * persist the SAME state, so there is nothing to fight over. If
+     * `addToBill`'s status write succeeded the row is no longer open and this
+     * cannot see it; if it FAILED, this resolves it a moment later. That closes
+     * the partial write that otherwise left somebody on the bill with an
+     * unresolved application and no way to retry from the UI, because
+     * `planAddToBill` refuses a second press with "already on the bill".
+     *
+     * ⛔ IT STILL SAYS NOTHING. The plan's notification above has already told
+     * them; a second message a moment later reads as a second booking.
+     * ⭐ `answerOpenRequests` speaks only where nothing else does — see
+     * `doAssign`, the other exception.
+     */
+    await answerOpenRequests(supabase, {
+      event,
+      member: { id: memberId, artist_profile_id: plan.member.artist_profile_id, artist_id: plan.member.artist_id },
+      notify: null,
+    });
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -605,10 +630,19 @@ export default function EventHostView({
       slotId: slot.id, eventId: id, memberId: memberData.id, status: 'offered',
     });
     if (!assigned) { setLineupError(assignErr); return; }
-    await Promise.all([
-      /* Same rule as publishSetTimes: giving somebody a slot IS the host
-         saying yes. The slot offer lives on the performance created above. */
-      supabase.from('applications').update({ status: 'accepted' }).eq('id', aApp.id),
+    const [statusRes] = await Promise.all([
+      /**
+       * ⭐⭐ `booked`, ⛔ NOT `accepted`. This route puts them ON THE BILL on the
+       * way to the slot, so the terminal truth is the same one every other bill
+       * route writes. ⛔ Writing `accepted` here spelled the same fact a second
+       * way depending on which button the host pressed.
+       *
+       * ⚠⚠ AND ITS RESULT IS NOW READ. This sat inside `Promise.all` with
+       * nothing inspecting it — PostgREST RESOLVES with `{error}` rather than
+       * throwing, so a failed status write was silently discarded while the
+       * optimistic update below asserted it had worked.
+       */
+      supabase.from('applications').update({ status: RESOLVED_BY_BOOKING }).eq('id', aApp.id),
       writeNotification({
         toUserId:       aApp.artist_id,
         toProfileId:    (await resolvePerformerProfileId(aApp.artist_id)).profileId ?? null,
@@ -618,9 +652,36 @@ export default function EventHostView({
         data:    { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
       }),
     ]);
+    /**
+     * ⭐⭐ ANYTHING ELSE THEY HAD OPEN FOR THIS NIGHT — an enquiry, a second
+     * application — now that they are on the bill with a slot offered.
+     *
+     * ⛔⛔ AFTER THE WRITE ABOVE, NEVER BEFORE. Placed first, this resolved
+     * `aApp` and the `applications` update overwrote it one statement later.
+     * Ordering is the only thing keeping two writers on one row consistent, and
+     * they now write the SAME state, so the sequence is safe either way round —
+     * ⛔ but do not reorder it on that basis; the write above is authoritative.
+     *
+     * ⭐⭐ NO `skipApplicationId`: it is the retry net. A status write the line
+     * above lost silently is picked up here, because the row is still open.
+     *
+     * ⛔ IT SAYS NOTHING. The slot offer beside it is the louder and more useful
+     * message and already implies the bill. ⭐ The rule across all four routes:
+     * `answerOpenRequests` speaks ONLY where nothing else does.
+     */
+    await answerOpenRequests(supabase, {
+      event,
+      member: { id: memberData.id, artist_profile_id: aApp.from_profile_id, artist_id: aApp.artist_id },
+      notify: null,
+    });
+    /* ⚠ SURFACED, NOT SWALLOWED — and non-fatal, matching `addToBill`: they ARE
+       on the bill and the slot IS offered, which are the writes that matter. */
+    if (statusRes?.error) {
+      setLineupError(`On the bill and offered a slot, but the application status was not updated: ${statusRes.error.message}`);
+    }
     // The optimistic update must match the write above, or the screen and the
     // database disagree until the next refetch.
-    setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: 'accepted' } : a));
+    setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: RESOLVED_BY_BOOKING } : a));
     queryClient.invalidateQueries({ queryKey: ['event', id] });
     setAssigningApp(null);
   }
@@ -703,6 +764,15 @@ export default function EventHostView({
     /* ⚠ SURFACED, NEVER SWALLOWED — RLS filters an UPDATE rather than erroring
        it, so a blocked write looks exactly like a button that did nothing. */
     if (error) { setLineupError(error.message); return; }
+    /**
+     * ⭐⭐ THE SHORTLIST DOOR. Promoting is the moment the host decides, and it
+     * owes the same answer as every other route onto the bill.
+     *
+     * ⛔ AFTER the error check, never before: a promotion RLS filtered away
+     * must not resolve anybody's request. `member` is the full row here, so it
+     * already carries the profile this is about.
+     */
+    await answerOpenRequests(supabase, { event, member, notify: writeNotification });
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 

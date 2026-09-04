@@ -32,6 +32,10 @@
    IS; this module owns one arrow into it and asks that module the question. */
 import { billCapacity, billFullMessage } from './hostLineup';
 import { normaliseStatus, PIPELINE_BUCKETS } from './enquiryUtils';
+/* ⭐ ONE SPELLING OF THE RESOLUTION STATE, imported rather than repeated, so a
+   literal here can never drift from what `answerOpenRequests` writes on the
+   other three routes onto a bill. */
+import { RESOLVED_BY_BOOKING } from './answerOpenRequests';
 
 /**
  * ── ⭐⭐ THE PIPELINE IS WHAT IS STILL WAITING, AND SOMEBODY ON THE BILL IS NOT ─
@@ -230,13 +234,24 @@ export function planAddToBill(app, profile = null, members = [], opts = {}) {
       status:            'on_bill',
     },
     /**
-     * ⭐ PUTTING SOMEONE ON THE BILL IS SAYING YES. If the host had only
-     * shortlisted them, the decision moves to `accepted` — that IS the host
-     * decision this column records. If it was already accepted, ⛔ nothing is
-     * rewritten: re-stamping a status it already holds would fire a second
-     * notification for a decision made days ago.
+     * ⭐⭐ ON THE BILL IS `booked`, ⛔ NOT `accepted` (owner, 2026-09-04).
+     *
+     * ⛔⛔ THIS ROUTE ACTUALLY PUTS THEM ON THE BILL, so the terminal truth is
+     * `booked`. Writing `accepted` here left the SAME REAL FACT spelled two
+     * ways in one column: `booked` when the person arrived via the shortlist,
+     * a profile fill or the backfill, `accepted` when they arrived through
+     * their own application. That is the two-vocabularies-in-one-column shape
+     * the application state machine exists to prevent.
+     *
+     * ⭐ `accepted` KEEPS ITS MEANING EVERYWHERE ELSE: the host said yes to an
+     * ask. It is still what `ApplicationsScreen` and `HostDashboard` write when
+     * a host accepts WITHOUT booking. ⛔ This is not a rename.
+     *
+     * ⚠ Already settled (`accepted`, `confirmed`, `booked`) rewrites nothing —
+     * see `alreadySettled`. So a second press is silent and a `booked` row is
+     * never downgraded.
      */
-    statusUpdate: alreadySettled ? null : 'accepted',
+    statusUpdate: alreadySettled ? null : RESOLVED_BY_BOOKING,
     /**
      * ⛔ SILENT WHEN THE DECISION DID NOT CHANGE. Q3 says joining the bill
      * notifies nobody; the only thing worth telling someone is that their
@@ -274,8 +289,18 @@ export async function addToBill(db, plan) {
     if (sErr) return { ok: true, error: `On the bill, but the application status was not updated: ${sErr.message}`, memberId: data?.id ?? null };
   }
 
-  // `accepted` says whether this add-to-bill WAS an accept decision, so the
-  // CALLER can observe it (AV5's application_accepted) — this module stays
-  // free of the analytics/supabase imports, per its injected-db contract.
-  return { ok: true, error: null, memberId: data?.id ?? null, accepted: plan.statusUpdate === 'accepted' };
+  /**
+   * `accepted` says whether this add-to-bill WAS an accept decision, so the
+   * CALLER can observe it (AV5's application_accepted) — this module stays
+   * free of the analytics/supabase imports, per its injected-db contract.
+   *
+   * ⚠⚠ IT ASKS WHETHER A DECISION HAPPENED, ⛔ NOT WHAT STRING WAS WRITTEN.
+   * It used to read `plan.statusUpdate === 'accepted'`, which silently became
+   * false the moment this route started persisting `booked` — and
+   * `application_accepted` would have stopped firing for `via: 'add_to_bill'`
+   * while the host kept making exactly the same decision. The event measures
+   * THE HOST ACCEPTING (its two call sites are told apart by `via`), so it must
+   * not be keyed on the persisted vocabulary.
+   */
+  return { ok: true, error: null, memberId: data?.id ?? null, accepted: !!plan.statusUpdate };
 }

@@ -176,7 +176,15 @@ export default function HostDashboard({ userId: userIdProp }) {
       const hostProfileId = profRes.data?.id || null;
 
       const evtRes = await supabase.from('events')
-        .select('id, name, status, config, applications_open, is_public, created_at')
+        /* ⚠⚠ `owner_profile_id` AND `venue_profile_id` ARE FOR `FillSlotModal`,
+           which this screen renders and which now resolves open requests when a
+           slot is filled from a profile. `enquiryBelongsToEvent` matches an
+           UNLINKED enquiry on the night AND the receiving side, and reads that
+           side from these two columns. Without them the check compares against
+           `undefined` and quietly matches nothing — so exactly the enquiry
+           shape that produced this bug would go unresolved from this surface
+           while working from the event page, whose read is `select('*')`. */
+        .select('id, name, status, config, applications_open, is_public, created_at, owner_profile_id, venue_profile_id')
         .or(ownedByFilter(userId, hostProfileId))
         .order('created_at', { ascending: false })
         .limit(50);

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { planAddToBill, addToBill, findExistingMember, pipelineApplications } from './lineupFromApplication.js';
+import { RESOLVED_BY_BOOKING } from './answerOpenRequests.js';
 
 /**
  * THE ARROW THAT DID NOT EXIST.
@@ -47,9 +48,25 @@ test('the profile comes from the application, never re-derived', () => {
  * ⭐⭐ Q3, ratified: adding to the bill is PRIVATE. Only the APPLICATION
  * DECISION may speak, and only when it actually changes.
  */
-test('shortlisted → on the bill also accepts the application, and says so once', () => {
+test('⭐⭐ shortlisted → on the bill writes the host decision: `accepted`', () => {
+  /* ⛔ NOT `booked`. Putting somebody on the bill IS the host saying yes, and
+     that is exactly what `accepted` records (L4). "Booked" is DERIVED by
+     `hostLineup.isBooked`, and on a managed event its answer is the ARTIST's
+     `performances.status = 'accepted'` — so a stored `booked` written when the
+     HOST acts would contradict it. ⭐ Every route onto a bill writes this one
+     value, through this one constant. */
   const p = planAddToBill(shortlisted, null, []);
-  assert.equal(p.statusUpdate, 'accepted', 'putting someone on the bill IS saying yes');
+  assert.equal(p.statusUpdate, RESOLVED_BY_BOOKING);
+  assert.equal(p.statusUpdate, 'accepted');
+});
+
+test('⭐ the NOTIFICATION is still the acceptance one, and there is exactly one', () => {
+  /* ⚠ `notify` is a notification KIND, ⛔ not a status. The applicant hears
+     "your application was accepted"; that copy is right whatever the column
+     says, and `booking_confirmed` already covers both spellings elsewhere
+     (VenueDashboard maps `accepted` AND `booked` to it). ⛔ The call site
+     passes `notify: null` to answerOpenRequests so this stays the only one. */
+  const p = planAddToBill(shortlisted, null, []);
   assert.equal(p.notify, 'accepted');
 });
 
@@ -151,8 +168,32 @@ test('adding writes the member and then the application status', async () => {
   assert.equal(res.ok, true);
   assert.equal(res.memberId, 'm-new');
   assert.deepEqual(db.calls.map(c => `${c.op}:${c.name}`), ['insert:lineup_members', 'update:applications']);
-  assert.equal(db.calls[1].fields.status, 'accepted');
+  assert.equal(db.calls[1].fields.status, RESOLVED_BY_BOOKING);
   assert.equal(db.calls[1].val, 'a-1', 'the status update targets the application the plan came from');
+});
+
+test('⭐⭐ ANALYTICS ASK WHETHER A DECISION HAPPENED, ⛔ not what string was written', async () => {
+  /* ⛔⛔ THE TRAP THIS PINS. `addToBill` used to report the accept decision as
+     `plan.statusUpdate === 'accepted'`. While this route briefly persisted
+     `booked`, that expression silently became FALSE — `application_accepted`
+     would have stopped firing for `via: 'add_to_bill'` while the host went on
+     making exactly the same decision, and nothing would have failed.
+
+     ⚠ The value is back to `accepted`, so the old expression would pass again
+     today. That is precisely why this test feeds a DIFFERENT value: it pins the
+     property, not the coincidence. AV5's event measures THE HOST ACCEPTING (its
+     two call sites are told apart by `via`), so it must never be keyed on the
+     persisted vocabulary. */
+  const db = fakeDb();
+  const plan = { ...planAddToBill(shortlisted, null, []), statusUpdate: 'some_future_spelling' };
+  const res = await addToBill(db, plan);
+  assert.equal(res.accepted, true, 'a decision was made, whatever it was called');
+});
+
+test('⛔ no decision, no analytics event', async () => {
+  const db = fakeDb();
+  const res = await addToBill(db, planAddToBill(accepted, null, []));
+  assert.equal(res.accepted, false, 'an already-settled application re-stamps nothing');
 });
 
 test('an already-accepted application writes ONLY the member', async () => {

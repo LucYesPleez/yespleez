@@ -17,49 +17,41 @@
  * "awaiting decision" while standing on a published lineup, which is the worse
  * half and the reason this is not cosmetic.
  *
- * ── ⛔⛔ `accepted` IS NOT THE STATE THIS WRITES (owner, 2026-09-04) ─────────
+ * ── ⭐⭐ THE STATE IT WRITES IS `accepted` (owner, 2026-09-05) ───────────────
  *
- * The first cut of this module wrote `accepted` everywhere, and that was
- * refused: `accepted` means THE HOST SAID YES TO A REQUEST, and its semantics
- * are the exact thing the application state machine exists to pin down. Making
- * it the automatic side effect of six different buttons would have retired the
- * distinction by flooding the column from paths that never made that decision.
+ * ⚠⚠ AN EARLIER CUT WROTE `booked`, AND THAT WAS WRONG. It read as a safer
+ * choice — a distinct state, so "resolved because I was booked" could not be
+ * confused with "the host said yes to my ask" — and the reconstruction of the
+ * state machine from the repository showed it was not:
  *
- * ⭐⭐ SO THE RESOLUTION IS ITS OWN STATE: `booked`. Not a new invention — the
- * read side has understood it since long before this module existed and NOTHING
- * has ever written it:
+ * ⛔⛔ 1 · `booked` IS A DERIVED QUESTION, AND STORING IT CREATES A SECOND,
+ * WRONG ANSWER. `hostLineup.isBooked` already answers it, and its answer
+ * depends on the event's contract (`lib/eventProvenance`): for legacy and
+ * imported events `on_bill` IS booked, but for a MANAGED event booking is
+ * MUTUAL — only `performances.status = 'accepted'`, the ARTIST's agreement,
+ * counts. Every route here fires when the HOST acts, so on a managed event a
+ * stored `booked` would assert a booking `isBooked` reports as false.
  *
- *     enquiryUtils.isBookedRow      ['booked','accepted']
- *     bookedHistorySplit            upcoming vs past bookings
- *     enquiryCalendar.STATUS_ORDER  '…accepted, booked, declined'
- *     dateLockout                   a booked date is spoken for
- *     hostOutgoingEnquiries         label BOOKED
+ * ⛔ 2 · IT IS NOT THE APPLICATION VOCABULARY. L4 defines the six canonical
+ * values and L5 exists to narrow to exactly them. `booked` was historically a
+ * `venue_enquiries` value, written by a `respond('booked')` button removed long
+ * ago; zero rows in that table have ever held it.
  *
- * ⭐ It also buckets correctly today with no other change: `normaliseStatus`
- * maps `booked` to the ACCEPTED bucket in BOTH directions, so the artist's
- * AWAITING tab empties and their ACCEPTED tab fills, which is the artist-facing
- * half of the bug. ⚠ The distinction survives in the raw column, so "resolved
- * because I was booked" stays separable from "the host said yes to my ask" for
- * whatever the ratified semantics of `accepted` turn out to be.
+ * ⛔ 3 · IT WAS NEVER NEEDED. `accepted` buckets out of PIPELINE exactly as
+ * `booked` does (`normaliseStatus` maps both to the ACCEPTED bucket), so the
+ * bug this module exists to close — somebody on the bill still showing as
+ * awaiting a decision — is closed either way.
  *
- * ── ⭐ `applications` NOW ADMITS THE STATE (2026-09-04) ─────────────────────
+ * ⭐ SO `accepted` IS CORRECT HERE, and it is not the "universal side effect"
+ * that was refused. That objection was to writing it from paths where no host
+ * decision had been made. Every route that calls this HAS put the person on the
+ * bill, which IS the host saying yes — L4: "⭐ the HOST said yes. ⛔ NEVER 'the
+ * artist agreed'." The artist's agreement stays where it has always lived, on
+ * `performances`, and nothing here touches it.
  *
- * This module was first written while `applications_status_check` admitted only
- * `pending · seen · shortlisted · accepted · declined · cancelled` plus four
- * legacy spellings, so applications were PLANNED and REPORTED but never
- * written — a `booked` write would have raised 23514. The constraint was
- * widened the same day and four rows were backfilled to `booked`, so that
- * blockage is gone and the code no longer pretends otherwise.
- *
- * ⚠⚠ L5 IS STILL UNRUN AND WOULD HAVE REJECTED THOSE ROWS as originally
- * written; it now carries `booked` explicitly. ⛔ Whoever narrows this
- * vocabulary again must keep it — L4's own header states the rule: "code that
- * sends a kind the constraint rejects is an OUTAGE."
- *
- * ⛔⛔ AND STILL NEVER `accepted`. That was the universal side effect the owner
- * refused, and afterwards it would be indistinguishable from a decision a host
- * really made. `accepted` = the host said yes to an ask. `booked` = the person
- * is on the bill. ⛔ Two states, two meanings, never collapsed.
+ * ⚠ FOUR PRODUCTION ROWS STILL HOLD `booked` from the 2026-09-04 backfill, and
+ * L5 as applied still permits it. Nothing writes it any more. ⛔ Do not treat
+ * those rows as precedent.
  */
 
 /**
@@ -72,18 +64,23 @@
 import { rawStatusesFor } from './enquiryUtils';
 
 /**
- * ⭐⭐ THE ONE RESOLUTION STATE. Exported so a migration, a backfill and the
- * writer below cannot disagree about the spelling.
+ * ⭐⭐ THE ONE RESOLUTION STATE, exported so every route onto a bill writes the
+ * same thing and a literal can never drift from it.
+ *
+ * ⚠ THE NAME DESCRIBES THE OCCASION, ⛔ NOT THE VALUE: this is the state
+ * written WHEN a request is resolved BY a booking, and that state is the host's
+ * `accepted`. ⛔ Do not read the constant's name as an argument for putting
+ * `booked` back — see the header for the three reasons it came out.
  */
-export const RESOLVED_BY_BOOKING = 'booked';
+export const RESOLVED_BY_BOOKING = 'accepted';
 
 /**
- * ⭐ THE TABLES THIS MAY WRITE. Both, since 2026-09-04.
+ * ⭐ THE TABLES THIS MAY WRITE.
  *
- * `venue_enquiries.status` carries no CHECK constraint and its readers already
- * understood `booked`. `applications.status` does carry one, and it admits
- * `booked` as of the widening that day — verified against production, where
- * four applications now hold it.
+ * Both admit `accepted`: `venue_enquiries.status` carries no CHECK at all (only
+ * `initiated_by` is constrained), and `applications_status_check` has listed it
+ * among the six canonical values since L4 — so this needs no migration and L5
+ * does not threaten it.
  */
 export const RESOLVABLE_TABLES = ['venue_enquiries', 'applications'];
 

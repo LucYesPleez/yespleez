@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import UnclaimedNotice from './UnclaimedNotice';
 import { supabase } from '../lib/supabase';
+import { answerOpenRequests } from '../lib/answerOpenRequests';
+import { writeNotification } from '../lib/writeNotification';
 import { genreLabels } from '../lib/profileTaxonomy';
 /* ⛔ ONE implementation of each share act, in lib/shareTarget. */
 import { shareUrl, nativeShare, copyMessage, canNativeShare } from '../lib/shareTarget';
@@ -196,6 +198,25 @@ export default function FillSlotModal({ slot, eventId, event = null, eventName =
       }).select('id').single();
       memberData = nm;
     }
+    /**
+     * ⭐⭐ THE FOURTH DOOR ONTO A BILL, and it owes the same answer as the other
+     * three. Filling a slot from a profile puts somebody on the bill, so an
+     * application or enquiry they had open for this night stops being a
+     * question — see `lib/answerOpenRequests`.
+     *
+     * ⚠ NEEDS THE `event` OBJECT, not `eventId`: the enquiry match is by night
+     * AND receiving side, and an enquiry naming no event is exactly the shape
+     * that produced this bug. ⭐ The prop is already passed for
+     * `placementCanCreateBooking`, so nothing new is threaded through.
+     *
+     * ⛔ `prof.id` IS THE SUBJECT, ⛔ never `prof.user_id` — that is the
+     * ACCOUNT, shared across every profile on it.
+     */
+    await answerOpenRequests(supabase, {
+      event,
+      member: { id: memberData.id, artist_profile_id: prof.id, artist_id: prof.user_id },
+      notify: writeNotification,
+    });
     /* ⛔⛔ ONE WRITER, and it writes `slot_uuid`. This wrote the legacy TEXT
        `slot_id` column with a UUID, so the L3 trigger could not resolve the FK
        and the row was invisible to every read. See `assignMemberToSlot`. */
@@ -224,6 +245,17 @@ export default function FillSlotModal({ slot, eventId, event = null, eventName =
     const { data: memberData } = await supabase.from('lineup_members').insert({
       event_id: eventId, artist_name: name.trim(), status: 'on_bill',
     }).select('id').single();
+    /**
+     * ⛔ NO `answerOpenRequests` CALL HERE, AND THAT IS NOT AN OVERSIGHT. This
+     * row carries no `artist_profile_id` by construction — a hand-typed act has
+     * no profile and no account — and the profile is the ONLY key a request may
+     * be matched on (`requestSubjectId`; the account is shared and the name is
+     * not unique). So the call could only ever be a no-op.
+     *
+     * ⛔ Never "fix" this by matching on the typed NAME. Two acts legitimately
+     * share one, and resolving somebody else's application because the letters
+     * agree is a far worse failure than the one being closed.
+     */
     /* ⚠ `accepted`, ⛔ not `draft` — a hand-entered act has no account to offer
        anything to, so writing them down IS the booking. Same rule `toClaim`
        states for display. */

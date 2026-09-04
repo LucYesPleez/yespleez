@@ -76,6 +76,10 @@ test('1 · shortlisted → ADD TO BILL → accepted + one member + one notificat
   const { res, notifications } = await run(db, SHORTLISTED);
 
   assert.equal(res.ok, true);
+  /* ⭐ `accepted` — putting somebody on the bill IS the host saying yes, and
+     that is what this column records (L4). ⛔ NOT `booked`: that question is
+     derived by `hostLineup.isBooked`, and on a managed event its answer is the
+     ARTIST's `performances.status`, not anything written here. */
   assert.equal(db.world.applications[0].status, 'accepted', 'the host decision moves');
   assert.equal(db.world.lineup_members.length, 1, 'exactly one member');
   assert.deepEqual(notifications, ['accepted'], 'exactly one acceptance notification');
@@ -267,7 +271,11 @@ test('⭐ the three meanings stay distinct', async () => {
   const db = fakeWorld({ apps: [SHORTLISTED], perfs: PERFS, slots: SLOTS });
   await run(db, SHORTLISTED);
 
-  assert.equal(db.world.applications[0].status, 'accepted', 'host accepted the APPLICATION');
+  /* ⚠ The THREE MEANINGS are the three TABLES. `applications` and
+     `performances` may both read 'accepted' and mean different things: the HOST
+     said yes vs the ARTIST agreed. Here the performance is only `offered`, so
+     the artist has agreed to nothing. */
+  assert.equal(db.world.applications[0].status, 'accepted', 'the HOST accepted the application');
   assert.equal(db.world.lineup_members[0].status, 'on_bill', 'the act is on the BILL');
   assert.equal(db.world.performances[0].status, 'offered', 'the artist has accepted NO performance');
   assert.equal(db.world.performances[0].accepted_at, null);

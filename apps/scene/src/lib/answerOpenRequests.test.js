@@ -10,7 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RESOLVED_BY_BOOKING, RESOLVABLE_TABLES, OPEN_REQUEST_STATUSES,
-  isOpenRequest, requestSubjectId, enquiryBelongsToEvent, planAnswerRequests,
+  isOpenRequest, requestSubjectId, enquiryBelongsToEvent, planAnswerRequests, answerOpenRequests,
 } from './answerOpenRequests.js';
 
 const COSMATIK = 'prof-cosmatik';
@@ -35,16 +35,33 @@ const enq = (over = {}) => ({
   venue_profile_id: PROMOTER, date_requested: '2026-10-17', status: 'pending', ...over,
 });
 
-/* ── ⛔⛔ The resolution state is NOT `accepted` ──────────────────────────── */
+/* ── ⭐⭐ The resolution state is the host's `accepted` ───────────────────── */
 
-test('⛔⛔ booking never writes `accepted` — that is the host saying yes to an ask', () => {
-  assert.notEqual(RESOLVED_BY_BOOKING, 'accepted');
-  assert.equal(RESOLVED_BY_BOOKING, 'booked');
+test('⭐⭐ the resolution state is `accepted`, and ⛔ NEVER `booked`', () => {
+  /* ⚠⚠ AN EARLIER CUT WROTE `booked` AND IT WAS WRONG, for three reasons the
+     module header sets out. The one that decides it: `booked` is DERIVED by
+     `hostLineup.isBooked`, whose answer on a MANAGED event is
+     `performances.status === 'accepted'` — the ARTIST's agreement. Every route
+     that calls this fires when the HOST acts, so a stored `booked` would assert
+     a booking that `isBooked` reports as false.
+
+     ⛔ `accepted` is the host saying yes, which is exactly what putting
+     somebody on the bill is (L4). The artist's agreement stays on
+     `performances`, untouched. */
+  assert.equal(RESOLVED_BY_BOOKING, 'accepted');
+  assert.notEqual(RESOLVED_BY_BOOKING, 'booked', 'a stored `booked` contradicts isBooked on managed events');
 });
 
-test('⭐ both tables take the state — applications joined once its CHECK admitted it', () => {
-  // `applications_status_check` was widened on 2026-09-04; four production rows
-  // hold `booked`. ⛔ L5 must keep it or it rejects them.
+test('⭐ the state it writes is inside the ratified L4/L5 vocabulary', () => {
+  // ⛔ So no migration is needed and L5 cannot reject what this writes.
+  const L5_CANONICAL = ['pending', 'seen', 'shortlisted', 'accepted', 'declined', 'cancelled'];
+  assert.ok(L5_CANONICAL.includes(RESOLVED_BY_BOOKING));
+});
+
+test('⭐ both tables take the state', () => {
+  /* `venue_enquiries.status` carries no CHECK at all (only `initiated_by` is
+     constrained) and `applications_status_check` has listed `accepted` among
+     the canonical six since L4 — so neither needs a migration. */
   assert.deepEqual(RESOLVABLE_TABLES, ['venue_enquiries', 'applications']);
 });
 
@@ -203,4 +220,79 @@ test('the notice is addressable even when the profile is unclaimed (N1: held)', 
 test('the notice carries a destination the row can open', () => {
   const plan = planAnswerRequests({ member: MEMBER, event: EVENT, enquiries: [enq()] });
   assert.equal(plan.notify.data.event_id, EVENT.id);
+});
+
+/* ── The executor: what actually gets written, and who gets told ─────────── */
+
+/**
+ * A chainable stand-in for the supabase client. Every filter returns `this`;
+ * awaiting it yields the rows seeded for that table. Writes are recorded.
+ */
+function fakeDb({ applications = [], venue_enquiries = [], failOn = null } = {}) {
+  const seeded = { applications, venue_enquiries };
+  const writes = [];
+  const q = (table) => {
+    const self = {
+      _op: 'select', _fields: null,
+      select() { return self; },
+      eq() { return self; },
+      in(col, vals) { if (self._op === 'update') self._ids = vals; return self; },
+      or() { return self; },
+      update(fields) { self._op = 'update'; self._fields = fields; return self; },
+      then(resolve) {
+        if (self._op === 'update') {
+          writes.push({ table, status: self._fields.status, ids: self._ids });
+          return resolve(failOn === table ? { error: { message: 'RLS' } } : { error: null });
+        }
+        return resolve({ data: seeded[table] || [] });
+      },
+    };
+    return self;
+  };
+  return { from: q, writes };
+}
+
+test('⭐⭐ ONE NOTIFICATION FOR THE PERSON even when both tables resolve', async () => {
+  const sent = [];
+  const db = fakeDb({ applications: [app()], venue_enquiries: [enq()] });
+  const res = await answerOpenRequests(db, {
+    event: EVENT, member: MEMBER, notify: (n) => { sent.push(n); return null; },
+  });
+  assert.equal(res.resolved, 2, 'both rows resolved');
+  assert.equal(sent.length, 1, '⛔ one person, one message — never one per row');
+  assert.deepEqual(db.writes.map(w => w.status), ['accepted', 'accepted']);
+});
+
+test('⭐⭐ NO DUPLICATE — a route that already notifies passes notify:null', async () => {
+  /* ⛔⛔ THE RULE. `addApplicantToBill` sends its own acceptance notice and
+     `doAssign` sends its slot offer, so both pass `notify: null` and this must
+     stay silent while STILL resolving the rows. A second "you are on the
+     lineup" a moment after either one reads as a second booking. */
+  const db = fakeDb({ applications: [app()], venue_enquiries: [enq()] });
+  const res = await answerOpenRequests(db, { event: EVENT, member: MEMBER, notify: null });
+  assert.equal(res.resolved, 2, 'still resolved');
+  assert.equal(res.notified, false, 'and nobody was told twice');
+  assert.deepEqual(db.writes.map(w => w.status), ['accepted', 'accepted']);
+});
+
+test('⛔⛔ a failed write sends NOTHING — never announce a status that did not move', async () => {
+  const sent = [];
+  const db = fakeDb({ applications: [app()], venue_enquiries: [enq()], failOn: 'applications' });
+  const res = await answerOpenRequests(db, {
+    event: EVENT, member: MEMBER, notify: (n) => { sent.push(n); return null; },
+  });
+  assert.equal(res.resolved, 0);
+  assert.equal(res.notified, false);
+  assert.equal(sent.length, 0, 'RLS filters an UPDATE rather than erroring it, so silence is the safe direction');
+});
+
+test('nothing open means no write and no message', async () => {
+  const sent = [];
+  const db = fakeDb();
+  const res = await answerOpenRequests(db, {
+    event: EVENT, member: MEMBER, notify: (n) => { sent.push(n); return null; },
+  });
+  assert.equal(res.resolved, 0);
+  assert.deepEqual(db.writes, []);
+  assert.equal(sent.length, 0);
 });
