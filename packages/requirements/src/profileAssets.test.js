@@ -28,10 +28,14 @@ import {
 } from './profileAssets.js';
 import { REQUIREMENT_KEYS } from './requirements.js';
 
-test('the nine stored keys are pinned — renaming one orphans live files', () => {
+test('the stored keys are pinned — renaming one orphans live files', () => {
+  /* ⚠ ADDING a key is safe; RENAMING or REORDERING is what orphans stored
+     files, because the key is part of the storage path. CLEARANCE was added
+     2026-09-03 for festival role evidence (Blue Card, RSA, first aid) — the
+     eight before it are untouched and must stay that way. */
   assert.deepEqual(ASSET_TYPE_KEYS, [
     'PRESS_KIT', 'STAGE_PLOT', 'TECH_RIDER', 'HOSPITALITY_RIDER', 'PUBLIC_LIABILITY',
-    'PROMO_PHOTOS', 'LOGO_PACK', 'MEDIA_KIT', 'OTHER',
+    'PROMO_PHOTOS', 'LOGO_PACK', 'MEDIA_KIT', 'CLEARANCE', 'OTHER',
   ]);
   assert.equal(new Set(ASSET_TYPE_KEYS).size, ASSET_TYPE_KEYS.length, 'duplicate key');
   for (const t of PROFILE_ASSET_TYPES) {
@@ -79,7 +83,9 @@ test('a file with no extension still produces a valid path', () => {
 
 test('OTHER is not requestable — an unsatisfiable requirement is a trap', () => {
   assert.ok(!ASSET_REQUIREMENT_KEYS.includes('OTHER'));
-  assert.equal(ASSET_REQUIREMENT_KEYS.length, 8);
+  // ⚠ 9 since CLEARANCE joined. ⭐ It IS requestable, unlike OTHER — "upload
+  // your Blue Card" is a satisfiable ask; "upload something" is not.
+  assert.equal(ASSET_REQUIREMENT_KEYS.length, 9);
 });
 
 test('ONE REGISTRY: requirements.js derives its asset keys from this module', () => {

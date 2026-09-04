@@ -51,7 +51,7 @@ import { ASSET_REQUIREMENT_KEYS, assetLabel } from './profileAssets.js';
 /** The six profile sections (design §9). One vocabulary: requirement grouping,
  *  readiness breakdown, and how the profile is described. Files are ALWAYS
  *  `assets` — a stage plot is an Asset, not Technical (I6). */
-export const SECTIONS = ['identity', 'media', 'technical', 'commercial', 'availability', 'assets'];
+export const SECTIONS = ['identity', 'background', 'media', 'technical', 'commercial', 'availability', 'assets'];
 
 /**
  * The canonical key registry. Requirements reference keys, never columns —
@@ -83,6 +83,29 @@ const FIELD_KEYS = {
   VENUE_TYPE:     { label: 'Venue Type',        section: 'identity',   kind: 'profile_field', column: 'venue_type',     predicate: 'filled' },
   CONTACT_EMAIL:  { label: 'Contact Email',     section: 'identity',   kind: 'profile_field', column: 'contact_email',  predicate: 'done' },
   EMERGENCY_CONTACT: { label: 'Emergency Contact', section: 'identity', kind: 'profile_field', column: 'emergency_name', predicate: 'filled' },
+  DOB:            { label: 'Date of Birth',     section: 'identity',   kind: 'profile_field', column: 'age',            predicate: 'filled' },
+
+  /**
+   * ── Background ────────────────────────────────────────────
+   *
+   * ⭐⭐ THESE DO NOT LIVE ON `profiles`. They are the reusable half of a
+   * FESTIVAL ROLE PROFILE (`festival_role_profiles.data`), and the engine does
+   * not know that — the CALLER composes the bag of held values from the
+   * canonical profile plus the role profile and hands it over. That is the
+   * package's own rule kept intact: it knows nothing about who is asking.
+   *
+   * ⛔⛔ THEY ARE DELIBERATELY ABSENT FROM `REQUESTABLE_KEYS`. That list is what
+   * `requestableBySection()` renders by default, and a venue setting its
+   * enquiry requirements must never be offered "Volunteer Experience" — the
+   * same leak the Scene profile-type ruling exists to prevent, one layer down.
+   * ⭐ Festival passes its own key list instead; see FESTIVAL_ROLE_REQUESTABLE_KEYS.
+   */
+  CURRENT_PROFESSION:     { label: 'Current Profession',     section: 'background', kind: 'profile_field', column: 'current_profession',     predicate: 'filled' },
+  VOLUNTEER_EXPERIENCE:   { label: 'Volunteer Experience',   section: 'background', kind: 'profile_field', column: 'volunteer_experience',   predicate: 'filled' },
+  EXPERIENCE_DESCRIPTION: { label: 'Experience Description', section: 'background', kind: 'profile_field', column: 'experience_description', predicate: 'filled' },
+  INDUSTRY_EXPERIENCE:    { label: 'Event Industry Experience', section: 'background', kind: 'profile_field', column: 'industry_experience', predicate: 'filled' },
+  SKILLS:                 { label: 'Skills',                 section: 'background', kind: 'profile_field', column: 'skills',                 predicate: 'filled' },
+  QUALIFICATIONS:         { label: 'Qualifications',         section: 'background', kind: 'profile_field', column: 'qualifications',         predicate: 'filled' },
 
   // ── Media ─────────────────────────────────────────────────
   DEMO_MIX:       { label: 'Demo Mix',          section: 'media',      kind: 'profile_field', column: 'mix_link',       predicate: 'filled' },
@@ -233,14 +256,53 @@ export const REQUESTABLE_KEYS = [
  * section, REQUESTABLE_KEYS order. Empty sections are omitted rather than
  * rendered as an empty heading (R5 — no visual holes).
  */
-export function requestableBySection() {
+/**
+ * ⭐⭐ THE CALLER CHOOSES WHAT IT OFFERS. Defaults to Scene's set, so every
+ * existing caller is unchanged.
+ *
+ * ⛔⛔ WHY THIS TAKES AN ARGUMENT AT ALL: this returns the rows
+ * `RequirementChecklist` renders, and it used to return EVERY requestable key.
+ * The moment Festival's role requirements were added to the registry, a VENUE
+ * setting its enquiry requirements would have been offered "Volunteer
+ * Experience" — Festival concepts leaking into a Scene surface, which is the
+ * exact failure the profile-type ruling exists to prevent.
+ *
+ * ⭐ It is the same move the checklist already makes with `intro`: the caller
+ * supplies what only the caller can know. The engine stays ignorant of who is
+ * asking.
+ */
+export function requestableBySection(keys = REQUESTABLE_KEYS) {
+  const offered = Array.isArray(keys) && keys.length ? keys : REQUESTABLE_KEYS;
   return SECTIONS
     .map(section => ({
       section,
-      keys: REQUESTABLE_KEYS.filter(k => REQUIREMENT_KEYS[k]?.section === section),
+      keys: offered.filter(k => REQUIREMENT_KEYS[k]?.section === section),
     }))
     .filter(g => g.keys.length > 0);
 }
+
+/**
+ * ⭐ WHAT A FESTIVAL MAY ASK OF A PERSONAL ROLE (Volunteer first; Worker, Decor
+ * and Media reuse it unchanged).
+ *
+ * ⚠ Identity keys come from the CANONICAL profile and background keys from the
+ * role profile — the caller merges both before evaluating, and this list does
+ * not care which is which. ⛔ It is not a second registry: every key here is
+ * defined once, above.
+ *
+ * ⛔ VENDOR ROLES ARE NOT THIS LIST. A market stall is a business — trading
+ * name, insurance, ABN — and forcing it through a personal-role list is how the
+ * vendor architecture would get decided by accident.
+ */
+export const FESTIVAL_ROLE_REQUESTABLE_KEYS = [
+  // Canonical identity
+  'PROFILE_PHOTO', 'LOCATION', 'CONTACT_EMAIL', 'EMERGENCY_CONTACT', 'DOB',
+  // Reusable role background
+  'CURRENT_PROFESSION', 'VOLUNTEER_EXPERIENCE', 'EXPERIENCE_DESCRIPTION',
+  'INDUSTRY_EXPERIENCE', 'SKILLS', 'QUALIFICATIONS',
+  // Evidence — documents, never a self-declared tickbox
+  ...ASSET_REQUIREMENT_KEYS,
+];
 
 /** Display label for a requirement key. Falls back to the key itself so a
  *  stale requirement on an old opportunity still names something. */

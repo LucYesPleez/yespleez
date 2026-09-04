@@ -19,6 +19,8 @@ import AnnouncementsScreen from './screens/AnnouncementsScreen';
 import FestivalScreen from './screens/FestivalScreen';
 import EventEditorScreen from './screens/EventEditorScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import VolunteerProfileScreen from './screens/VolunteerProfileScreen';
+import VolunteerProfileHarness from './screens/VolunteerProfileHarness';
 import MessagesScreen from './screens/MessagesScreen';
 import { HelpScreen } from './screens/stubs';
 import FestivalLandingScreen from './public/FestivalLandingScreen';
@@ -107,6 +109,15 @@ export default function App() {
                 header before adding anything that writes or signs in. */}
             <Route path="/f/:eventId" element={<FestivalLandingScreen />} />
 
+            {/* DEV ONLY — the volunteer editor against fixtures. Outside the
+                Gate because the whole point is to see it WITHOUT signing in as
+                an allowlisted organiser, and tree-shaken out of the production
+                bundle by the guard. ⛔ This is not a second public surface:
+                `import.meta.env.DEV` means it does not exist in a build. */}
+            {import.meta.env.DEV && (
+              <Route path="/dev/volunteer-profile" element={<VolunteerProfileHarness />} />
+            )}
+
             {/* Gate wraps the SHELL, not each screen: AppShell renders the
                 Outlet, so the child routes below still resolve normally. */}
             {/* ⭐ THE COMPANION — the same six rooms at mobile density, behind
@@ -135,6 +146,11 @@ export default function App() {
                   law holds at six and adding one is an architecture decision. */}
               <Route path="/festival/event/:eventId" element={<EventEditorScreen />} />
               <Route path="/settings" element={<SettingsScreen />} />
+              {/* ⭐ THE PERSON'S OWN ROLE PROFILE — a route inside Settings, not
+                  a seventh room. Reused at every festival, so it is deliberately
+                  NOT scoped by the selected event. See the screen's header for
+                  who can currently reach it, which is a live question. */}
+              <Route path="/settings/volunteer-profile" element={<VolunteerProfileScreen />} />
               <Route path="/help" element={<HelpScreen />} />
               {/* Applications is the front door, not Overview: the workspace is
                   where the work is, and an unknown path should land in it. */}

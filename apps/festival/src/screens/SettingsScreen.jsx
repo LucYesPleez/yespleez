@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   SectionCard, Button, ListRow, Tag,
   Textarea, Select, Toggle, Row,
@@ -30,6 +31,7 @@ const TEAM = [
 const ROLE_TONE = { Owner: 'green', Admin: 'purple', Reviewer: 'neutral' };
 
 export default function SettingsScreen() {
+  const navigate = useNavigate();
   const [prefs, setPrefs] = useState({
     holdOutcomes: true,
     autoAck: true,
@@ -49,6 +51,28 @@ export default function SettingsScreen() {
           </p>
         </div>
       </header>
+
+      {/**
+        * ⭐⭐ YOU, NOT THE FESTIVAL. Everything else on this screen configures an
+        * organisation; this row is the one thing here that belongs to the human
+        * signed in, and it is separated rather than filed under Team for that
+        * reason — a personal record listed among festival settings reads as
+        * something the festival owns.
+        *
+        * ⛔ NOT A SIDEBAR ENTRY. Six rooms is the navigation law; this is a
+        * route inside Settings, the same shape the event editor takes.
+        */}
+      <SectionCard
+        title="You"
+        subtitle="Yours, not this festival's. It travels with you to every festival you apply to."
+      >
+        <ListRow
+          icon="volunteer"
+          title="Your volunteer profile"
+          meta="Experience, skills and qualifications. Answered once, reused every time."
+          onClick={() => navigate('/settings/volunteer-profile')}
+        />
+      </SectionCard>
 
       <SectionCard
         title="Team"

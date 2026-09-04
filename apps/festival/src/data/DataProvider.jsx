@@ -6,6 +6,7 @@ import { applicationRepository } from './supabase/applicationRepository';
 import { eventConfigRepository } from './supabase/eventConfigRepository';
 import { publicLandingRepository } from './supabase/publicLandingRepository';
 import { peopleRepository } from './supabase/peopleRepository';
+import { roleProfileRepository } from './supabase/roleProfileRepository';
 
 /**
  * THE SWAP POINT.
@@ -44,6 +45,13 @@ const DEFAULT_REPOSITORIES = {
   // ⭐ The roster: PARTICIPATION, never accepted applications. People is the
   // first screen that would be wrong without it.
   people: peopleRepository,
+  /**
+   * ⭐⭐ THE ONLY REPOSITORY THAT IS NOT THE ORGANISER'S. A role profile and a
+   * person's private details belong to the human and are reused at every
+   * festival they ever apply to. ⛔ Not event-scoped, ⛔ not festival-scoped,
+   * and no organiser may edit somebody else's.
+   */
+  roleProfiles: roleProfileRepository,
 };
 
 export default function DataProvider({ repositories, children }) {

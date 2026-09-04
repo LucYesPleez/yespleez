@@ -73,6 +73,19 @@ export const PROFILE_ASSET_TYPES = [
   { key: 'PROMO_PHOTOS',      label: 'Promo Photos',      cardinality: 'many'   },
   { key: 'LOGO_PACK',         label: 'Stickers / Logos',  cardinality: 'many', distributable: true },
   { key: 'MEDIA_KIT',         label: 'Media Kit',         cardinality: 'single' },
+  /**
+   * ⭐⭐ EVIDENCE, ⛔ NOT A TICKBOX. Owner's ruling 2026-09-03: a clearance such
+   * as a Blue Card or an RSA is held as a DOCUMENT, and a self-declared "yes I
+   * have one" must never substitute for it. A festival that requires proof
+   * needs the file, and the requirements engine can then ask for it like any
+   * other asset.
+   *
+   * ⚠ `many` because people hold several — a Blue Card, an RSA, a first-aid
+   * certificate — and one slot would make the second one overwrite the first.
+   * ⛔ It is deliberately NOT `distributable`: a compliance document is shown
+   * to an organiser who requires it, never handed around like a press kit.
+   */
+  { key: 'CLEARANCE',         label: 'Clearances & Certificates', cardinality: 'many' },
   { key: 'OTHER',             label: 'Other',             cardinality: 'many'   },
 ];
 

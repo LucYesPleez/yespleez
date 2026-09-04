@@ -34,7 +34,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluate, completionFor, COMPLETION_KEYS, COMPLETION_COLUMNS, REQUIREMENT_KEYS, REQUESTABLE_KEYS, SECTIONS, requestableBySection, requirementLabel, snapshotEvaluation, columnsFor } from './requirements.js';
+import { evaluate, completionFor, COMPLETION_KEYS, COMPLETION_COLUMNS, REQUIREMENT_KEYS, REQUESTABLE_KEYS, SECTIONS, requestableBySection, requirementLabel, snapshotEvaluation, columnsFor, FESTIVAL_ROLE_REQUESTABLE_KEYS } from './requirements.js';
+import { ASSET_REQUIREMENT_KEYS } from './profileAssets.js';
 
 // ── The oracles: the exact closures this module replaced ──────────────
 // ArtistDashboard.jsx:330, HostDashboard.jsx:327, VenueDashboard.jsx:193 as of
@@ -427,4 +428,52 @@ test('a profile fetched with columnsFor evaluates identically to the full row', 
     evaluate(required, { profile: full }).items,
   );
   assert.equal(evaluate(required, { profile: partial }).canSubmit, true);
+});
+
+// ── FR1 · Festival role requirements must not leak into Scene ──────────────
+/**
+ * ⛔⛔ THE LEAK THIS PREVENTS. `requestableBySection()` returns the rows
+ * `RequirementChecklist` renders. It used to return EVERY requestable key, so
+ * adding Festival role requirements to the registry would have offered a VENUE
+ * "Volunteer Experience" when it set its enquiry requirements — Festival
+ * concepts appearing on a Scene surface, which is the same failure the
+ * profile-type ruling exists to prevent.
+ */
+test('FR1 · Scene\'s default offer is unchanged by the festival keys', () => {
+  const offered = requestableBySection().flatMap(g => g.keys);
+  for (const k of ['VOLUNTEER_EXPERIENCE', 'CURRENT_PROFESSION', 'EXPERIENCE_DESCRIPTION',
+                   'INDUSTRY_EXPERIENCE', 'SKILLS', 'QUALIFICATIONS', 'DOB']) {
+    assert.ok(!offered.includes(k), `${k} must never be offered on a Scene surface`);
+  }
+});
+
+test('FR1 · a caller can offer its own set', () => {
+  const offered = requestableBySection(FESTIVAL_ROLE_REQUESTABLE_KEYS).flatMap(g => g.keys);
+  assert.ok(offered.includes('VOLUNTEER_EXPERIENCE'));
+  assert.ok(offered.includes('EMERGENCY_CONTACT'));
+  // ⚠ Music-industry asks are irrelevant to a volunteer, but they arrive with
+  // ASSET_REQUIREMENT_KEYS. That is deliberate — evidence is evidence — and
+  // the PORTAL narrows the list it shows, not the engine.
+  assert.ok(offered.length > 0);
+});
+
+test('FR1 · an empty or missing list falls back to Scene\'s, never to nothing', () => {
+  // ⛔ A checklist that silently renders zero rows reads as "this asks for
+  // nothing", which is the one thing a requirements UI must never imply.
+  assert.deepEqual(requestableBySection([]), requestableBySection());
+  assert.deepEqual(requestableBySection(undefined), requestableBySection());
+});
+
+test('FR1 · every festival role key resolves to a real registry entry', () => {
+  for (const k of FESTIVAL_ROLE_REQUESTABLE_KEYS) {
+    assert.ok(REQUIREMENT_KEYS[k], `${k} is offered but not defined — it would render as its own key`);
+  }
+});
+
+test('FR1 · a clearance is evidence, not a boolean', () => {
+  // Owner's ruling: a self-declared "has Blue Card" must not substitute for the
+  // document. So the clearance is an ASSET key, and there is no boolean field.
+  assert.ok(ASSET_REQUIREMENT_KEYS.includes('CLEARANCE'));
+  assert.ok(!REQUIREMENT_KEYS.HAS_BLUE_CARD);
+  assert.ok(!REQUIREMENT_KEYS.HAS_CLEARANCE);
 });

@@ -1,0 +1,85 @@
+-- PP1c · REMOVE THE DUPLICATION PP1a/PP1b LEFT BEHIND.
+--
+-- ⚠⚠ WHAT HAPPENED, recorded because the mechanism will recur. Both tables were
+-- created by hand on 2026-09-03. PP1a and PP1b were written afterwards to put
+-- them in Git, from a catalogue read that could see columns, types, defaults
+-- and comments but NOT policies, grants, indexes or triggers. Those four were
+-- asserted from house convention and applied on 2026-09-04 before the diff came
+-- back. The assertions were equivalent to what was live, so nothing was
+-- loosened and nothing broke — but they were named differently, so
+-- `drop policy if exists` matched nothing and everything landed BESIDE the
+-- originals instead of replacing them.
+--
+-- ⭐ THE LESSON IS ABOUT NAMES, NOT ABOUT POLICIES. An idempotent migration is
+-- only idempotent against objects it can name. Two correct policies with
+-- different names are not one policy applied twice.
+--
+-- ── WHY REMOVING THESE IS SAFE ─────────────────────────────────────────
+--
+-- ⛔⛔ TWO PERMISSIVE POLICIES ON ONE TABLE ARE OR'D, AND THE LOOSEST WINS.
+-- That is exactly why the duplicates have to go rather than be left as
+-- harmless: today the pairs are equivalent, so the OR changes nothing. The
+-- moment somebody tightens one of them, the other keeps the door open and the
+-- tightening reads as done. This is the SEC-1/SEC-2 shape, arriving through the
+-- front door of a migration that was trying to be careful.
+--
+-- ⭐ Access after this migration is UNCHANGED. Each dropped policy has a
+-- surviving counterpart with an equivalent predicate:
+--
+--   festival_role_profiles_own (ALL)  →  _select_own / _insert_own /
+--                                        _update_own, via can_act_as
+--   person_private_write_own   (ALL)  →  _select_own / _insert_own /
+--                                        _update_own, via auth.uid() = user_id
+--
+-- ⚠ Neither dropped policy was providing DELETE in practice: `authenticated`
+-- has no DELETE grant on either table, so the FOR ALL policies were reaching
+-- for a privilege that was never there. Removing them makes "no delete" a
+-- property of the policy set as well as of the grant.
+
+-- ── 1 · the inline ownership test ──────────────────────────────────────
+--
+-- ⛔ `EXISTS (SELECT 1 FROM profiles p WHERE p.id = profile_id AND p.user_id =
+-- auth.uid())` is `can_act_as(profile_id)` written out by hand. The seam is the
+-- only ownership predicate in this architecture and its signature is frozen
+-- precisely so its BODY can evolve; a policy that inlines the current body
+-- opts out of every future change to it, silently.
+DROP POLICY IF EXISTS festival_role_profiles_own ON public.festival_role_profiles;
+
+-- ── 2 · the account-level FOR ALL ──────────────────────────────────────
+--
+-- Same predicate as the three per-command policies that replace it. ⚠ The
+-- reason to prefer three: a FOR ALL policy quietly covers DELETE, so the day a
+-- DELETE grant is added for an unrelated reason the policy is already open.
+DROP POLICY IF EXISTS person_private_write_own ON public.person_private;
+
+-- ── 3 · the duplicate unique index ─────────────────────────────────────
+--
+-- `festival_role_profiles_one_per_role` (a UNIQUE CONSTRAINT) and
+-- `festival_role_profiles_profile_role` (a bare unique index created by PP1b)
+-- enforce the identical rule on the identical columns. Two of them means every
+-- write maintains two B-trees for one guarantee.
+--
+-- ⭐ THE CONSTRAINT SURVIVES, THE INDEX GOES. A constraint is declared: it
+-- appears in `pg_constraint`, it can be named as an `on conflict` target, and
+-- it states that the uniqueness is intended. An index that happens to be unique
+-- states only that it currently is.
+DROP INDEX IF EXISTS public.festival_role_profiles_profile_role;
+
+-- ── ⭐⭐ THE SHAPE THIS LOCKS IN: SEVEN POLICIES, NO `FOR ALL` ──────────
+--
+-- ⚠ Seven, not six. An earlier note here miscounted it as six while listing
+-- all seven, which is the kind of arithmetic that turns a verification step
+-- into a rubber stamp — you check against the number, and the number was wrong.
+--
+--   person_private            select_own · insert_own · update_own      (3)
+--   festival_role_profiles    select_own · insert_own · update_own      (3)
+--   festival_role_profiles    read_applied                              (1)
+--
+-- ⛔⛔ NO `FOR ALL` POLICY IS EVER REINTRODUCED ON EITHER TABLE. FOR ALL
+-- silently covers DELETE, which would make "nobody can delete" a property of
+-- the GRANT alone — one accidental grant away from open. Per-command means a
+-- delete has to be written on purpose, in a migration, where it can be argued
+-- with.
+--
+-- ⚠ AFTER THIS RUNS, re-run the introspection query and expect exactly those
+-- seven POLICY rows. Anything else is drift.
