@@ -244,10 +244,17 @@ test('⭐ the LIGHT theme paints its own ground, and DARK deliberately does not'
      IS the design, and a widget that inherited a cramped container would lose
      it. Dark paints nothing: a venue choosing it has a dark, usually
      photographic site, and a flat panel would hide the design they chose. */
-  assert.match(CODE, /\.ypz-ve--theme-light\{color:#[0-9a-f]{6};background:#[0-9a-f]{6};padding:\d+px\}/);
+  assert.match(CODE, /\.ypz-ve--theme-light\{color:#[0-9a-f]{6};background:#[0-9a-f]{6};padding:[\d px]+\}/);
+  /* ⚠ More on top than anywhere else: the widget lands under a heading the
+     venue wrote, and a grid flush to the panel edge reads as cropped. */
+  const lightPad = CODE.match(/\.ypz-ve--theme-light\{[^']*padding:([\d px]+)\}/)[1].trim().split(/\s+/);
+  assert.ok(parseInt(lightPad[0], 10) > parseInt(lightPad[2] || lightPad[0], 10),
+    'the top padding must exceed the bottom');
   assert.match(CODE, /\.ypz-ve--theme-light \.ypz-ve-card\{background:#fff/);
-  assert.match(CODE, /\.ypz-ve--theme-dark\{color:#[0-9a-f]{6}\}/,
+  assert.match(CODE, /\.ypz-ve--theme-dark\{color:#[0-9a-f]{6};padding:[\d px]+\}/,
     'dark states a colour and NO background — that is the deliberate asymmetry');
+  assert.doesNotMatch(CODE, /\.ypz-ve--theme-dark\{[^']*background/,
+    "dark must not paint a panel over the venue's own photograph");
 });
 
 test('⚠ title and blurb are CLAMPED, and the widget never rewrites either', () => {
@@ -355,6 +362,21 @@ test('⭐ the HTML wrapper reuses the widget rather than reimplementing it', () 
   assert.match(PAGE, /<script src="\.\/venue-events\.js"><\/script>/);
   assert.doesNotMatch(PAGE, /\/api\/venue-events/, 'the wrapper must not grow its own fetch');
   assert.doesNotMatch(PAGE, /#\/event\//);
+});
+
+test('⭐ the wrapper hides its scrollbar — and venue-events.js never could', () => {
+  /* A bar down the right of an events panel reads as a broken embed. The page
+     still scrolls; only the bar is hidden. ⚠ Safe ONLY because the whole
+     document IS the widget — hiding it on a page with other content would take
+     away the reader's only clue that there is more. */
+  assert.match(PAGE, /scrollbar-width: none/);
+  assert.match(PAGE, /::-webkit-scrollbar/);
+
+  /* ⛔⛔ AND IT STAYS IN THE WRAPPER. `venue-events.js` drops into pages we do
+     not own, so it must never reach for `html` or `body` — the scrollbar it
+     would hide there belongs to somebody else's site. */
+  assert.doesNotMatch(CODE, /scrollbar/i);
+  assert.doesNotMatch(CODE, /'(html|body)[^']*\{/);
 });
 
 test('⛔ the wrapper puts the query string in an ATTRIBUTE, never in markup', () => {

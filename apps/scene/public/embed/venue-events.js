@@ -176,7 +176,10 @@
        "blend in": the whitespace IS the design, and a widget that inherited a
        cramped container would lose it. `plain` remains for a page that wants
        no panel at all. */
-    '.ypz-ve--theme-light{color:#1a1714;background:#f4f2ed;padding:22px}',
+    /* ⚠ MORE ON TOP THAN ANYWHERE ELSE. The widget lands directly under a
+       heading the venue wrote — "What's on" — and a grid that starts flush
+       against the panel edge reads as cropped rather than as designed. */
+    '.ypz-ve--theme-light{color:#1a1714;background:#f4f2ed;padding:34px 24px 28px}',
     '.ypz-ve--theme-light .ypz-ve-card{background:#fff;border-color:rgba(0,0,0,.08);box-shadow:0 1px 2px rgba(0,0,0,.04)}',
     '.ypz-ve--theme-light .ypz-ve-date{border-right-color:rgba(0,0,0,.13)}',
     '.ypz-ve--theme-light .ypz-ve-cta{background:#1c1917;color:#fff}',
@@ -187,8 +190,19 @@
     /* ⚠ DARK PAINTS NO GROUND, on purpose. A venue choosing the dark theme has
        a dark site, and a flat panel over the photograph they chose would hide
        the design rather than sit in it. The cards are translucent instead. */
-    '.ypz-ve--theme-dark{color:#f4f1ec}',
-    '.ypz-ve--theme-dark .ypz-ve-card{background:rgba(12,10,9,.82);border-color:rgba(255,255,255,.14)}',
+    /* ⚠ Top padding only: dark paints no panel, so side padding would push the
+       grid out of step with whatever column the venue put it in. The breathing
+       room above the first row is still wanted. */
+    '.ypz-ve--theme-dark{color:#f4f1ec;padding:26px 0 4px}',
+    /* ⚠⚠ OPAQUE, ⛔ NOT TRANSLUCENT, AND THAT WAS A REAL DEFECT. This card was
+       `rgba(12,10,9,.82)`, meant to sit IN the venue's design rather than on
+       top of it. Over the Federal Hotel's warm plaster render 18% of a tan
+       photograph came through and every card composited to about
+       rgb(42,30,21) — chocolate brown, on a site that asked for near-black.
+       ⛔ A card's colour must not be a function of the picture behind it: the
+       venue cannot predict it, and it changes as they change their own
+       background. The panel is opaque; the GROUND is what stays theirs. */
+    '.ypz-ve--theme-dark .ypz-ve-card{background:#141210;border-color:rgba(255,255,255,.14)}',
     '.ypz-ve--theme-dark .ypz-ve-date{border-right-color:rgba(255,255,255,.18)}',
     '.ypz-ve--theme-dark .ypz-ve-cta{background:#f4f1ec;color:#14110e}',
     '.ypz-ve--theme-dark .ypz-ve-card:hover .ypz-ve-cta{background:#fff}',

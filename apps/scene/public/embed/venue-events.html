@@ -26,7 +26,18 @@
 <title>YesPleez — venue events</title>
 <style>
   html, body { margin: 0; padding: 0; background: transparent; }
-  body { padding: 8px; }
+
+  /* ⭐ NO SCROLLBAR ON THIS PAGE. It is a fragment inside somebody's iframe, and
+     a bar down the right of an events panel reads as a broken embed rather than
+     as a long list.
+     ⚠ THE PAGE STILL SCROLLS — wheel, trackpad, touch and keyboard all work;
+     only the bar is hidden. ⛔ So this is safe ONLY because the whole document
+     IS the widget: hiding a scrollbar on a page with other content would hide
+     the reader's only clue that there is more of it.
+     ⛔ It lives HERE and not in venue-events.js, which must never style `html`
+     or `body` — that file drops into pages we do not own. */
+  html { scrollbar-width: none; -ms-overflow-style: none; }
+  html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
 </style>
 </head>
 <body>
