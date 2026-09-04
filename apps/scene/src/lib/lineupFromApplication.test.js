@@ -60,6 +60,23 @@ test('⛔ an already-accepted application is not re-stamped, and notifies nobody
   assert.equal(p.notify, null);
 });
 
+test('⛔⛔ a `booked` application is SETTLED — never downgraded to accepted', () => {
+  /* `booked` became canonical on 2026-09-04 and four production rows hold it.
+     Treated as undecided, this plan would rewrite it to `accepted` — a strict
+     downgrade, since `accepted` is the host saying yes to an ask and `booked`
+     is the person actually being on the bill — and fire "your application was
+     accepted" for a decision already made and already told.
+
+     ⚠ Reachable because `findExistingMember` is passed the ON-BILL members
+     only: an act moved to shortlist or removed still arrives here carrying it.
+     The empty members array is exactly that case. */
+  const booked = { ...accepted, id: 'a-booked', status: 'booked' };
+  const p = planAddToBill(booked, null, []);
+  assert.equal(p.ok, true);
+  assert.equal(p.statusUpdate, null, '⛔ booked must never be overwritten with accepted');
+  assert.equal(p.notify, null);
+});
+
 /**
  * ⛔ NO PERFORMANCE IS CREATED. Being on the bill is not being given a time —
  * 123 of 152 members hold no performance, which is the normal state.

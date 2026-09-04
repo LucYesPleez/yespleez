@@ -191,7 +191,28 @@ export function planAddToBill(app, profile = null, members = [], opts = {}) {
     return { ok: false, reason: 'This application does not identify anybody — no profile, no account and no name — so it cannot be added to the bill.' };
   }
 
-  const alreadyAccepted = app.status === 'accepted' || app.status === 'confirmed';
+  /**
+   * ⭐⭐ SETTLED, ⛔ NOT "ACCEPTED" — the two are different questions and the
+   * old name answered only one of them.
+   *
+   * ⛔⛔ `booked` MUST BE HERE (2026-09-04). It became canonical when the bill
+   * was given its own resolution state, and four production rows hold it. Left
+   * out, a `booked` application read as undecided: `statusUpdate` would have
+   * REWRITTEN it to `accepted` — a strict downgrade, since `accepted` is the
+   * host saying yes to an ask and `booked` is the person actually being on the
+   * bill — and `notify` would have fired "your application was accepted" for a
+   * decision already made and already told.
+   *
+   * ⚠ Narrow but reachable: `findExistingMember` catches the common case
+   * first, but it is passed the ON-BILL members only, so an act whose
+   * membership was moved to shortlist or removed still arrives here carrying
+   * `booked`.
+   *
+   * ⛔ This does NOT make add-to-bill write `booked`. `statusUpdate` stays
+   * `accepted` — putting somebody on the bill from their own application IS
+   * the host saying yes, and that is the decision this column records.
+   */
+  const alreadySettled = ['accepted', 'confirmed', 'booked'].includes(app.status);
 
   return {
     ok: true,
@@ -215,13 +236,13 @@ export function planAddToBill(app, profile = null, members = [], opts = {}) {
      * rewritten: re-stamping a status it already holds would fire a second
      * notification for a decision made days ago.
      */
-    statusUpdate: alreadyAccepted ? null : 'accepted',
+    statusUpdate: alreadySettled ? null : 'accepted',
     /**
      * ⛔ SILENT WHEN THE DECISION DID NOT CHANGE. Q3 says joining the bill
      * notifies nobody; the only thing worth telling someone is that their
      * APPLICATION was accepted, and only the first time.
      */
-    notify: alreadyAccepted ? null : 'accepted',
+    notify: alreadySettled ? null : 'accepted',
   };
 }
 
