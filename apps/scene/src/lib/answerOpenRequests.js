@@ -49,9 +49,10 @@
  * artist agreed'." The artist's agreement stays where it has always lived, on
  * `performances`, and nothing here touches it.
  *
- * ⚠ FOUR PRODUCTION ROWS STILL HOLD `booked` from the 2026-09-04 backfill, and
- * L5 as applied still permits it. Nothing writes it any more. ⛔ Do not treat
- * those rows as precedent.
+ * ⭐ FULLY REVERTED 2026-09-05. The rows backfilled to `booked` are back to
+ * `accepted`, and `applications_status_check` is tightened to the canonical six
+ * — verified in `pg_constraint`, `convalidated = true`, ZERO rows hold `booked`.
+ * ⛔ Nothing writes it and nothing may.
  */
 
 /**
@@ -284,9 +285,10 @@ export async function answerOpenRequests(db, {
   const resolving = plan.enquiryIds.length + plan.applicationIds.length;
   if (!resolving) return quiet;
 
-  /* ⚠ BOTH TABLES TAKE THE SAME STATE, and both may be empty. `applications`
-     joined this list on 2026-09-04 when its CHECK was widened; before that it
-     could only be counted, never written. */
+  /* ⚠ BOTH TABLES TAKE THE SAME STATE, and both may be empty. Neither needs a
+     migration to accept it: `venue_enquiries.status` carries no CHECK at all,
+     and `applications_status_check` has listed `accepted` among the canonical
+     six since L4. */
   const writes = [];
   if (plan.enquiryIds.length) {
     writes.push(db.from('venue_enquiries')

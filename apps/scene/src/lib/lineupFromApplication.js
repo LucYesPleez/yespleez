@@ -197,24 +197,16 @@ export function planAddToBill(app, profile = null, members = [], opts = {}) {
 
   /**
    * ⭐⭐ SETTLED, ⛔ NOT "ACCEPTED" — the two are different questions and the
-   * old name answered only one of them.
+   * old name answered only one of them. A settled application is never
+   * re-stamped, so it is never downgraded and never re-notified.
    *
-   * ⛔⛔ `booked` MUST BE HERE (2026-09-04). It became canonical when the bill
-   * was given its own resolution state, and four production rows hold it. Left
-   * out, a `booked` application read as undecided: `statusUpdate` would have
-   * REWRITTEN it to `accepted` — a strict downgrade, since `accepted` is the
-   * host saying yes to an ask and `booked` is the person actually being on the
-   * bill — and `notify` would have fired "your application was accepted" for a
-   * decision already made and already told.
-   *
-   * ⚠ Narrow but reachable: `findExistingMember` catches the common case
-   * first, but it is passed the ON-BILL members only, so an act whose
-   * membership was moved to shortlist or removed still arrives here carrying
-   * `booked`.
-   *
-   * ⛔ This does NOT make add-to-bill write `booked`. `statusUpdate` stays
-   * `accepted` — putting somebody on the bill from their own application IS
-   * the host saying yes, and that is the decision this column records.
+   * ⚠ `booked` IS LISTED DEFENSIVELY, and no longer describes any live row.
+   * Four applications briefly held it (backfilled 2026-09-04, reverted
+   * 2026-09-05) and `applications_status_check` no longer admits it, so nothing
+   * can write it and nothing holds it. ⛔ Kept anyway: a settled-state test that
+   * silently stops recognising a value is how a row comes to be treated as
+   * undecided, and the cost of the extra string is nothing. `confirmed` is here
+   * on the same basis — L5 removed it from the constraint too.
    */
   const alreadySettled = ['accepted', 'confirmed', 'booked'].includes(app.status);
 

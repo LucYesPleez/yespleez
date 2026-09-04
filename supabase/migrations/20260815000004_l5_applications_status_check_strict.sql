@@ -84,23 +84,37 @@ alter table public.applications
 alter table public.applications
   add constraint applications_status_check check (
     status is null or status in (
-      'pending', 'seen', 'shortlisted', 'accepted', 'declined', 'cancelled',
-      -- ⭐⭐ `booked` IS CANONICAL, ⛔ not a legacy spelling to be tightened out
-      -- (owner, 2026-09-04). A request stops being a question once the person
-      -- is put on the bill, and that resolution is ITS OWN state: `accepted`
-      -- means the HOST SAID YES TO AN ASK, and making it the automatic side
-      -- effect of every route onto a lineup would retire the distinction this
-      -- constraint exists to protect.
-      --
-      -- ⛔⛔ WITHOUT THIS LINE L5 REJECTS FOUR LIVE ROWS. The constraint was
-      -- widened to admit `booked` on 2026-09-04 and four applications were
-      -- backfilled to it (Pokki and Anti-Faffist on Solstice Soirée, Madds on
-      -- Bass Heavy, Cosmatik on YesPleez pres.) — each one already on the bill
-      -- while still showing as awaiting a decision. Running L5 as originally
-      -- written would fail at this constraint on all four.
-      'booked'
+      'pending', 'seen', 'shortlisted', 'accepted', 'declined', 'cancelled'
     )
   );
+
+-- ── ⚠⚠ `booked` WAS BRIEFLY ADMITTED HERE, AND IS NOT ANY MORE ─────────────
+--
+-- 2026-09-04: the constraint was widened by hand to admit `booked` and four
+-- applications were backfilled to it — each one already on a bill while still
+-- showing as awaiting a decision. This file carried `'booked'` in the list
+-- above so that L5 would not reject them.
+--
+-- 2026-09-05: reverted, on both counts. Reconstructing the state machine from
+-- the repository showed `booked` should never have been an `applications`
+-- value:
+--
+--   · It is DERIVED, and storing it creates a second, wrong answer.
+--     `hostLineup.isBooked` already answers "is this person booked", and on a
+--     MANAGED event its answer is `performances.status = 'accepted'` — the
+--     ARTIST's agreement. Every route that would have written it fires when the
+--     HOST acts, so the stored value would contradict the derived one.
+--   · It was never the application vocabulary. Historically `booked` was a
+--     `venue_enquiries` value, written by a `respond('booked')` button removed
+--     long ago; zero rows in that table have ever held it.
+--   · It was not needed. `accepted` buckets out of PIPELINE exactly as `booked`
+--     does, so the bug it was introduced for closes either way.
+--
+-- The rows were set to `accepted` (the host DID say yes — they are on the bill)
+-- and the constraint tightened back to the canonical six. Verified in
+-- `pg_constraint`: `convalidated = true`, six values, ZERO rows hold `booked`.
+--
+-- ⛔ This note is a RECORD, not an instruction. Do not re-add the value.
 
 -- ── ⭐⭐ VERIFICATION — RUN THIS AFTER, AND READ IT ─────────────────────────
 --

@@ -77,16 +77,13 @@ test('⛔ an already-accepted application is not re-stamped, and notifies nobody
   assert.equal(p.notify, null);
 });
 
-test('⛔⛔ a `booked` application is SETTLED — never downgraded to accepted', () => {
-  /* `booked` became canonical on 2026-09-04 and four production rows hold it.
-     Treated as undecided, this plan would rewrite it to `accepted` — a strict
-     downgrade, since `accepted` is the host saying yes to an ask and `booked`
-     is the person actually being on the bill — and fire "your application was
-     accepted" for a decision already made and already told.
-
-     ⚠ Reachable because `findExistingMember` is passed the ON-BILL members
-     only: an act moved to shortlist or removed still arrives here carrying it.
-     The empty members array is exactly that case. */
+test('⛔ a retired spelling still reads as SETTLED, so it is never re-stamped', () => {
+  /* ⚠ NO LIVE ROW HOLDS `booked`. Four applications briefly did (backfilled
+     2026-09-04, reverted 2026-09-05) and `applications_status_check` no longer
+     admits it. This pins the DEFENSIVE half: a status the settled-set stops
+     recognising reads as UNDECIDED, and the plan would then re-stamp it and
+     fire "your application was accepted" for a decision already made. The same
+     guard covers `confirmed`, which L5 also removed from the constraint. */
   const booked = { ...accepted, id: 'a-booked', status: 'booked' };
   const p = planAddToBill(booked, null, []);
   assert.equal(p.ok, true);
