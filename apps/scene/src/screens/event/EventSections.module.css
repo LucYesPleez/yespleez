@@ -422,6 +422,16 @@
   letter-spacing: 0.11em;
 }
 
+/* The Photos → Add Sticker recipe, shown only after a share sheet has already
+   handed the file over. Sized to sit under the shelf as an aside, never as a
+   second heading: the shelf is the thing, this is a footnote to it. */
+.stickerHint {
+  margin: 9px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 /* ⚠ HOVER IS NOT AVAILABLE ON THE DEVICE MOST PEOPLE ARE ON.
    The save affordance is revealed on hover for mouse users, and is ALWAYS
    VISIBLE on touch — gating it purely on :hover would make it invisible on a

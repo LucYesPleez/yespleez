@@ -41,11 +41,13 @@
 // reserved for artefact-level actions, which is why the Favourite moved off the
 // Hero and into the Decision block.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CollectIcon, ExpandIcon, DownloadIcon } from './eventIcons';
 import s from './EventSections.module.css';
 import { renderSticker, loadStickerImage } from '../../lib/stickerEffects';
-import { saveStickerToDevice } from '../../lib/saveSticker';
+import {
+  saveStickerToDevice, renderStickerFile, isAppleTouchDevice,
+} from '../../lib/saveSticker';
 
 export default function EventPoster({
   poster = null,
@@ -54,6 +56,10 @@ export default function EventPoster({
   onToggleCollect = null,
 }) {
   const [viewing, setViewing] = useState(false);
+  /* 'share' | 'download' | null — which route the last sticker save actually
+     took. ⚠ It is the ROUTE, not a boolean: the Photos instructions below are
+     only true of the share sheet, and a desktop download must not claim them. */
+  const [savedVia, setSavedVia] = useState(null);
 
   // Escape closes the viewer. A full-screen overlay with no keyboard exit is a
   // trap for anyone not using a mouse.
@@ -124,9 +130,26 @@ export default function EventPoster({
         <div className={s.headRow}><h3 className={s.subHeading}>STICKERS</h3></div>
         <div className={s.collectables}>
           {items.map(item => (
-            <StickerTile key={item.id || item.url} item={item} />
+            <StickerTile key={item.id || item.url} item={item} onSaved={setSavedVia} />
           ))}
         </div>
+        {/* ── HOW IT BECOMES A MESSAGES STICKER ─────────────────────────────
+            ⛔⛔ NOTHING ON THE WEB CAN PUT A FILE IN THE MESSAGES STICKER
+            DRAWER. iOS fills that drawer from Photos, Memoji and native
+            sticker-pack extensions, and offers no API to a page. The sheet
+            gets the PNG into Photos; the last step is iOS's own, and the only
+            honest thing to do is say what it is.
+
+            ⚠ SHOWN AFTER THE SHARE, NOT BEFORE. As standing copy it is a
+            three-step instruction attached to a shelf most readers will just
+            tap; after a save it is the answer to the question they now have.
+            It stays put once shown, because it is a recipe, not a toast. */}
+        {savedVia === 'share' && isAppleTouchDevice() && (
+          <p className={s.stickerHint}>
+            Saved. Choose Save Image, then touch and hold the sticker in Photos
+            and tap Add Sticker to keep it in Messages.
+          </p>
+        )}
         </>
       )}
 
@@ -158,11 +181,32 @@ export default function EventPoster({
  * a tainted canvas, a logo that will not load — the plain artwork still shows.
  * A sticker shelf with a hole in it reads as broken (R4: broken ≠ sparse);
  * an unstyled logo reads as a logo.
+ *
+ * ⚠⚠ THE SAVE FILE IS RENDERED ON POINTERDOWN, NOT ON CLICK, and that ordering
+ * is the whole reason the share sheet opens at all on an iPhone. Compositing a
+ * 1024px PNG takes longer than iOS keeps the tap's transient activation alive,
+ * so awaiting the render inside the click handler throws NotAllowedError and
+ * drops the reader back to a Files download. `pointerdown` fires first and
+ * gives the render a head start; the click then has the file already. See the
+ * header of lib/saveSticker. ⛔ Do not "simplify" this back into onSave.
  */
-function StickerTile({ item }) {
+function StickerTile({ item, onSaved }) {
   const [src, setSrc] = useState(item.url);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  /* The composited PNG, and the in-flight render that produces it. Two refs
+     rather than state: neither one paints anything, and re-rendering the tile
+     mid-gesture is exactly what we are trying to avoid. */
+  const fileRef = useRef(null);
+  const warmingRef = useRef(null);
+
+  /* ⚠ A WARMED FILE BELONGS TO ONE ARTWORK AND ONE EFFECT. Without this the
+     shelf would hand over the previous effect's pixels after a change in the
+     editor, which is the failure the tile's own render was built to prevent. */
+  useEffect(() => {
+    fileRef.current = null;
+    warmingRef.current = null;
+  }, [item?.url, item?.effect]);
 
   useEffect(() => {
     let alive = true;
@@ -181,12 +225,30 @@ function StickerTile({ item }) {
     return () => { alive = false; };
   }, [item?.url, item?.effect]);
 
+  /** Start compositing now, or return the render already in flight. */
+  function warm() {
+    if (fileRef.current) return Promise.resolve(fileRef.current);
+    if (!warmingRef.current) {
+      warmingRef.current = renderStickerFile(item).then(file => {
+        fileRef.current = file;
+        return file;
+      });
+    }
+    return warmingRef.current;
+  }
+
   async function onSave() {
     if (busy) return;
-    setBusy(true);
     setFailed(false);
-    const res = await saveStickerToDevice(item);
-    if (!res.saved) setFailed(true);
+    /* ⛔ NO `setBusy(true)` BEFORE THE SHARE ON THE WARM PATH. A state update
+       here re-renders the tile and disables the button underneath the gesture,
+       and Safari treats that as the activation ending. The spinner is only
+       worth having when there is actually a wait, which is the cold path. */
+    const file = fileRef.current || (setBusy(true), await warm());
+    const res = await saveStickerToDevice(item, { file });
+    /* ⭐ A DISMISSED SHARE SHEET IS NOT A FAILURE — see saveStickerToDevice. */
+    if (res.saved) onSaved?.(res.method);
+    else if (!res.cancelled) setFailed(true);
     setBusy(false);
   }
 
@@ -194,6 +256,7 @@ function StickerTile({ item }) {
     <button
       type="button"
       className={s.collectable}
+      onPointerDown={warm}
       onClick={onSave}
       disabled={busy}
       title={failed ? 'That sticker could not be saved' : (item.alt || 'Save to your device')}
