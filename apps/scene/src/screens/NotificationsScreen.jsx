@@ -14,6 +14,7 @@ import {
 import useSeenNotifications from '../hooks/useSeenNotifications';
 import { findOrphanedOffers } from '../lib/orphanedOffers';
 import NotificationChannelChips from '../components/NotificationChannelChips';
+import InviteTerms from '../components/InviteTerms';
 import { SECTION_SCROLL_MARGIN } from '../lib/notificationChannels3';
 
 /**
@@ -454,22 +455,11 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef, orphaned = fals
             heading — do not restore this block, two copies of the same name in
             one card is what the move was for. */}
 
-        {notif.type === 'event_invite' && (data.proposed_date || data.proposed_fee) && (
-          <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,255,255,.04)', borderRadius: 8, display: 'flex', gap: 20 }}>
-            {data.proposed_date && (
-              <div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>DATE</div>
-                <div style={{ fontSize: 13, color: '#fff', fontFamily: "'DM Sans',sans-serif" }}>{data.proposed_date}</div>
-              </div>
-            )}
-            {data.proposed_fee && (
-              <div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>FEE</div>
-                <div style={{ fontSize: 13, color: '#fff', fontFamily: "'DM Sans',sans-serif" }}>{data.proposed_fee}</div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* ⭐ EXTRACTED to components/InviteTerms — the bell renders the same
+            block from the same file. ⛔ Do not re-inline it: this screen and
+            NotifPanel are twins, and the bell was offering ACCEPT/DECLINE with
+            none of these facts because only this copy existed. */}
+        {notif.type === 'event_invite' && <InviteTerms data={data} />}
 
         {actionable && notif.type === 'slot_offer' && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
