@@ -47,7 +47,7 @@
  * edge (see `functions/api/venue-events.js`).
  */
 import { eventSpan } from './eventDays';
-import { eventCardImage } from './eventImage';
+import { eventCardImage, eventPosterImage } from './eventImage';
 import { displayTown } from './formatLocation';
 import { PUBLIC_ORIGIN } from './qrDestinations';
 import { readDate, readEndDate, readClock, readGenres } from '../screens/event/eventViewModel';
@@ -72,7 +72,7 @@ export const DESCRIPTION_MAX = 280;
  */
 export const PUBLIC_EVENT_FIELDS = Object.freeze([
   'id', 'name', 'url', 'date', 'end_date', 'start_time', 'doors',
-  'image', 'description', 'genres', 'venue_name',
+  'image', 'poster', 'description', 'genres', 'venue_name',
 ]);
 
 /** ⛔ Same rule, for the venue block. `location` is DELIBERATELY ABSENT — on a
@@ -208,6 +208,12 @@ export function publicEvent(event, { venueName = null, origin = PUBLIC_ORIGIN } 
     start_time: readClock(cfg.time, cfg.ampm),
     doors: readClock(cfg.doors, cfg.doors_ampm || cfg.ampm),
     image: eventCardImage(event),
+    /* ⭐ BOTH PICTURES, because they answer different questions. `image` is what
+       goes in a landscape frame (cover-led); `poster` is the artwork itself, or
+       NULL where there is none. ⛔ The feed does not choose between them — a
+       poster wall and a card grid want opposite things, and a feed that picked
+       one would be deciding a layout it cannot see. */
+    poster: eventPosterImage(event),
     description: publicDescription(cfg.bio),
     /* ⚠ `readGenres` is the app's own reader: one stored string, separated by
        `·` OR `,` depending on which generation wrote it, deduplicated

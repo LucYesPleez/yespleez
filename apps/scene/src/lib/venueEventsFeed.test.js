@@ -228,6 +228,29 @@ test('genres are published as a cleaned ARRAY, using the app\'s own reader', () 
   assert.deepEqual(publicEvent(ev({}, { genres: undefined }), {}).genres, []);
 });
 
+test('⭐⭐ the poster is published SEPARATELY from the card image', () => {
+  /* They answer different questions. `image` is what goes in a landscape frame
+     (cover-led, because cropping portrait artwork into a band throws away the
+     date and bill printed down its edges); `poster` is the artwork itself. */
+  const both = publicEvent(ev({}, { cover: 'https://cdn.example/c.jpg', poster: 'https://cdn.example/p.jpg' }), {});
+  assert.equal(both.image, 'https://cdn.example/c.jpg', 'the cover wins for a card');
+  assert.equal(both.poster, 'https://cdn.example/p.jpg', 'the poster is offered alongside it');
+
+  /* ⛔⛔ NULL RATHER THAN FALLING BACK TO THE COVER. An event with only a cover
+     has no poster, and saying so lets a poster wall decide whether to crop it,
+     skip it, or draw it differently. A silent fallback would hand back a
+     landscape image labelled "poster" and no caller could tell. */
+  const coverOnly = publicEvent(ev({}, { cover: 'https://cdn.example/c.jpg', poster: undefined }), {});
+  assert.equal(coverOnly.image, 'https://cdn.example/c.jpg');
+  assert.equal(coverOnly.poster, null);
+
+  /* ⚠ All three cases are live on the Bellingen Brewing Co's three upcoming
+     events: poster only, cover only, and both. */
+  const posterOnly = publicEvent(ev({}, { cover: undefined, poster: 'https://cdn.example/p.jpg' }), {});
+  assert.equal(posterOnly.image, 'https://cdn.example/p.jpg', 'with no cover, the card falls to the poster');
+  assert.equal(posterOnly.poster, 'https://cdn.example/p.jpg');
+});
+
 test('a doors time is published when one is set', () => {
   const e = publicEvent(ev({}, { doors: '7:00', doors_ampm: 'PM' }), {});
   assert.equal(e.doors, '7:00pm');

@@ -82,7 +82,7 @@ test('⛔ every remote URL is scheme-checked before it reaches an href or a src'
     assert.match(CODE, sink);
   }
   assert.match(CODE, /var href = safeUrl\(ev\.url\)/);
-  assert.match(CODE, /var img = safeUrl\(ev\.image\)/);
+  assert.match(CODE, /var img = safeUrl\(wantsPoster \? \(ev\.poster \|\| ev\.image\) : ev\.image\)/);
 });
 
 test('⛔ an outbound link cannot navigate the venue\'s own window', () => {
@@ -249,6 +249,28 @@ test('⛔⛔ the scrollbar is hidden ONLY in a frame that is nothing but this wi
   const startBody = CODE.slice(CODE.indexOf('function start()'));
   assert.ok(startBody.indexOf('hideFrameScrollbar()') < startBody.indexOf('querySelectorAll(SELECTOR)'),
     'the frame test must run before the mounts are filled with our own cards');
+});
+
+test('⭐⭐ a PORTRAIT layout asks for the poster; a card grid asks for the cover', () => {
+  /* The feed sends both because they answer different questions, and the LAYOUT
+     is the only thing that knows which is being asked. ⛔ The feed must not
+     choose — it cannot see the layout. */
+  assert.match(CODE, /function card\(ev, venueLabel, wantsPoster\)/);
+  assert.match(CODE, /render\(mount, data, layout === 'posters'\)/);
+  /* ⚠ Falls back to the cover, because a poster is genuinely absent on some
+     rows — one of the Bellingen Brewing Co's three upcoming events has only a
+     cover — and a cropped cover is a better tile than an empty one. */
+  assert.match(CODE, /ev\.poster \|\| ev\.image/);
+});
+
+test('⭐ font inheritance is asked for, never assumed', () => {
+  /* Worth nothing in a Wix iframe, where `inherit` resolves to the frame's own
+     default; worth a lot on a Webflow embed, which renders inline in the
+     venue's document. ⛔ Not automatic — we cannot tell a deliberate
+     system-font site from a frame with nothing to offer. */
+  assert.match(CODE, /var FONTS = \{ system: 1, inherit: 1 \}/);
+  assert.match(CODE, /pick\(mount, 'font', FONTS, 'system'\)/);
+  assert.match(CODE, /\.ypz-ve--font-inherit[^']*\{font-family:inherit\}/);
 });
 
 /* ── the presets ───────────────────────────────────────────────────────────── */

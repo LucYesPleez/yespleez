@@ -53,3 +53,28 @@ export function eventCardImage(event) {
   const cfg = event?.config || {};
   return firstUrl(cfg.cover_thumb, cfg.cover, cfg.poster_thumb, cfg.poster);
 }
+
+/**
+ * The POSTER — the artwork itself, for a surface whose whole shape is portrait.
+ *
+ * ⛔⛔ THIS IS NOT `eventCardImage` WITH THE LADDER REVERSED, AND THE DIFFERENCE
+ * IS THE POINT. That function answers "what picture goes in this landscape
+ * frame", and its answer is the Cover precisely because cropping portrait
+ * artwork into a band throws away the date and the bill printed down its edges.
+ * This one answers a different question — "is there a poster" — for a wall that
+ * is portrait to begin with, where the cover is the wrong shape instead.
+ *
+ * ⚠ IT RETURNS NULL RATHER THAN FALLING BACK TO THE COVER. An event with only a
+ * cover has no poster, and saying so lets the caller decide: a poster wall can
+ * crop the cover, or skip the tile, or draw it differently. ⛔ A silent fallback
+ * here would hand back a landscape image labelled "poster" and the caller could
+ * never tell — which is exactly the defect this exists to end, where a poster
+ * wall rendered cropped covers and looked like it had simply been built wrong.
+ *
+ * ⚠ Measured on the Bellingen Brewing Co's three upcoming events: one has only
+ * a poster, one has only a cover, one has both. All three cases are real.
+ */
+export function eventPosterImage(event) {
+  const cfg = event?.config || {};
+  return firstUrl(cfg.poster_thumb, cfg.poster, cfg.poster_full);
+}

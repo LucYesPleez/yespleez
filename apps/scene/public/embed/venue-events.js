@@ -15,6 +15,7 @@
  *   data-yespleez-layout   grid (default) · posters · list
  *   data-yespleez-columns  auto (default) · 1 · 2 · 3 · 4
  *   data-yespleez-accent   #rrggbb — colours the genre line under each title
+ *   data-yespleez-font     system (default) · inherit
  *   data-yespleez-limit    how many events, 1–50
  *
  * ── ⭐⭐ WHY PRESETS RATHER THAN "STYLE IT YOURSELF" ─────────────────
@@ -99,6 +100,7 @@
   var THEMES = { light: 1, open: 1, dark: 1, plain: 1 };
   var LAYOUTS = { grid: 1, posters: 1, list: 1 };
   var COLUMNS = { auto: 1, '1': 1, '2': 1, '3': 1, '4': 1 };
+  var FONTS = { system: 1, inherit: 1 };
 
   /** #rgb · #rgba · #rrggbb · #rrggbbaa. ⛔ Nothing else reaches setProperty. */
   var HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
@@ -107,6 +109,15 @@
     /* ── base ───────────────────────────────────────────────────── */
     '.ypz-ve{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.45}',
     '.ypz-ve *{box-sizing:border-box}',
+    /* ⭐⭐ INHERIT IS ONLY WORTH ASKING FOR WHERE THERE IS SOMETHING TO INHERIT.
+       A Wix HTML embed is an iframe: the host page's CSS never reaches it, so
+       `inherit` would resolve to the frame's own default and the venue would get
+       Times New Roman for their trouble. A Webflow Embed renders INLINE, in the
+       venue's own document — there the widget can pick up their typeface for
+       free, which is most of the distance between "close" and "exact".
+       ⛔ Not automatic: the venue says which they want, because we cannot tell a
+       deliberate system-font site from an iframe with nothing to offer. */
+    '.ypz-ve--font-inherit,.ypz-ve--font-inherit .ypz-ve-name,.ypz-ve--font-inherit .ypz-ve-tag{font-family:inherit}',
     '.ypz-ve-list{display:grid;gap:20px;grid-template-columns:1fr;margin:0;padding:0;list-style:none}',
     '.ypz-ve-card{display:flex;flex-direction:column;border:1px solid transparent;border-radius:3px;overflow:hidden;text-decoration:none;color:inherit}',
     '.ypz-ve-img{display:block;width:100%;object-fit:cover;background:rgba(128,128,128,.15)}',
@@ -463,7 +474,7 @@
    * or an empty clock row, for the other five would be stating a fact nobody
    * recorded. Absent stays absent and the card simply gets shorter.
    */
-  function card(ev, venueLabel) {
+  function card(ev, venueLabel, wantsPoster) {
     var href = safeUrl(ev.url);
     var a = document.createElement(href ? 'a' : 'div');
     a.className = 'ypz-ve-card';
@@ -475,7 +486,13 @@
       a.rel = 'noopener noreferrer';
     }
 
-    var img = safeUrl(ev.image);
+    /* ⭐⭐ A PORTRAIT WALL ASKS FOR THE POSTER; A CARD GRID ASKS FOR THE COVER.
+       The feed sends both because they answer different questions, and the
+       LAYOUT is the only thing that knows which is being asked here.
+       ⚠ `|| ev.image` because a poster is genuinely absent on some rows — one of
+       the Bellingen Brewing Co's three upcoming events has only a cover — and a
+       cropped cover is a better tile than an empty one. */
+    var img = safeUrl(wantsPoster ? (ev.poster || ev.image) : ev.image);
     if (img) {
       var picture = el('img', 'ypz-ve-img');
       picture.src = img;
@@ -541,7 +558,7 @@
     return [venue.name, venue.town].filter(Boolean).join(', ');
   }
 
-  function render(mount, data) {
+  function render(mount, data, wantsPoster) {
     var events = (data && data.events) || [];
     if (!events.length) {
       note(mount, 'No upcoming events listed right now.');
@@ -553,7 +570,7 @@
     var list = el('ul', 'ypz-ve-list');
     for (var i = 0; i < events.length; i++) {
       var li = document.createElement('li');
-      li.appendChild(card(events[i], venueLabel));
+      li.appendChild(card(events[i], venueLabel, wantsPoster));
       list.appendChild(li);
     }
     mount.appendChild(list);
@@ -591,7 +608,9 @@
     /* ⛔ CLASS NAMES FROM A FIXED TABLE — never a class built from raw input. */
     mount.classList.add('ypz-ve');
     mount.classList.add('ypz-ve--theme-' + pick(mount, 'theme', THEMES, 'light'));
-    mount.classList.add('ypz-ve--layout-' + pick(mount, 'layout', LAYOUTS, 'grid'));
+    var layout = pick(mount, 'layout', LAYOUTS, 'grid');
+    mount.classList.add('ypz-ve--layout-' + layout);
+    mount.classList.add('ypz-ve--font-' + pick(mount, 'font', FONTS, 'system'));
     mount.classList.add('ypz-ve--cols-' + pick(mount, 'columns', COLUMNS, 'auto'));
 
     /* ⭐ The accent goes in as a CUSTOM PROPERTY, on the mount, after a hex
@@ -617,7 +636,7 @@
        identical whoever makes it, or the shared cache in front of it is wrong. */
     fetch(url, { credentials: 'omit' })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
-      .then(function (data) { render(mount, data); })
+      .then(function (data) { render(mount, data, layout === 'posters'); })
       .catch(function () {
         /* ⛔ The reader is told nothing technical. This renders on somebody
            else's homepage, where a stack trace is worse than a quiet line. */
