@@ -1,7 +1,50 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isEventManager, manageableEvents } from './eventOwnership.js';
+import { isEventManager, manageableEvents, venueEventsFilter } from './eventOwnership.js';
+
+/**
+ * ── ⭐⭐ A VENUE DASHBOARD LISTS A VENUE'S EVENTS, NOT AN ACCOUNT'S ──────────
+ *
+ * The Elbows Rest dashboard showed 5 events of which 2 were Elbows Rest's,
+ * because the query filtered on `host_id` — the account — and that account
+ * holds seven profiles. Identity v1.3 O-R3: the account is authorship, never
+ * ownership.
+ */
+
+const ACCT  = 'acct-1';
+const VENUE = 'prof-elbows';
+
+test('the venue’s own nights are listed', () => {
+  assert.match(venueEventsFilter(ACCT, VENUE), /owner_profile_id\.eq\.prof-elbows/);
+});
+
+test('⭐⭐ a night SOMEBODY ELSE owns but holds here is still the venue’s diary', () => {
+  // `Bass Heavy` is owned by the YesPleez host profile and held at Elbows Rest.
+  // ⛔ An owner-only filter is the obvious fix and deletes the venue's bookings.
+  assert.match(venueEventsFilter(ACCT, VENUE), /venue_profile_id\.eq\.prof-elbows/);
+});
+
+test('⛔⛔ the account arm can only answer for a row that names NO owner', () => {
+  const f = venueEventsFilter(ACCT, VENUE);
+  assert.match(f, /and\(host_id\.eq\.acct-1,owner_profile_id\.is\.null\)/);
+  // ⛔ The bare arm is what let a festival event onto a venue's dashboard.
+  assert.doesNotMatch(f, /(^|,)host_id\.eq\.acct-1(,|$)/,
+    'an unqualified host_id arm overrides rows that DO name an owner');
+});
+
+test('⛔ an account-only filter is never produced when a venue profile exists', () => {
+  const arms = venueEventsFilter(ACCT, VENUE).split(/,(?![^(]*\))/);
+  assert.equal(arms.length, 3);
+});
+
+test('with no venue profile only the legacy arm survives, and it stays narrow', () => {
+  assert.equal(venueEventsFilter(ACCT, null), 'and(host_id.eq.acct-1,owner_profile_id.is.null)');
+});
+
+test('⛔ no identity at all asks for nothing rather than everything', () => {
+  assert.equal(venueEventsFilter(null, null), '');
+});
 
 /**
  * THE 82 EVENTS NOBODY COULD MANAGE.

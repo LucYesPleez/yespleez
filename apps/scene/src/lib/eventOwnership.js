@@ -83,3 +83,51 @@ export function ownedByFilter(userId, hostProfileId) {
   if (userId) arms.push(`host_id.eq.${userId}`);
   return arms.join(',');
 }
+
+/**
+ * ── ⭐⭐ THE EVENTS ON ONE VENUE'S DASHBOARD ────────────────────────────────
+ *
+ * ⛔⛔ AN ACCOUNT IS NOT A VENUE (owner, 2026-09-04). `VenueDashboard` asked
+ * `.eq('host_id', userId)` — its own comment admitted it, "approximated with
+ * host_id for now" — and `host_id` is the ACCOUNT. On an account holding seven
+ * profiles that listed 5 events on the Elbows Rest dashboard of which 2 were
+ * Elbows Rest's: a YesPleez night at the Bellingen Brewing Co, a Solstice
+ * Soirée with no venue at all, and an Echo Valley FESTIVAL event.
+ *
+ * ⚠ The tell that it was a defect and not a convenience: on that same header
+ * ENQUIRIES and AVAIL. DATES are filtered by `venue_profile_id` and EVENTS was
+ * filtered by the account, so one strip of numbers meant two different things.
+ * Identity v1.3 O-R3 states it outright — the account is authorship, delivery,
+ * dedup and authentication, ⛔ NEVER ownership.
+ *
+ * ── ⛔ WHY THREE ARMS, AND WHY NONE OF THEM MAY GO ──────────────────────────
+ *
+ * ⭐⭐ `venue_profile_id` IS NOT OPTIONAL. A venue's own bookings are usually
+ * owned by SOMEBODY ELSE — `Bass Heavy` is owned by the YesPleez host profile
+ * and held at Elbows Rest, and it belongs on this dashboard. An owner-only
+ * filter is the obvious fix and it silently deletes the venue's actual diary.
+ *
+ * ⚠ The legacy arm is CONJOINED, ⛔ not a bare `host_id.eq`. `host_id` is NULL
+ * on 82 of 92 events so the arm has to exist, but qualified by
+ * `owner_profile_id.is.null` it can only ever ANSWER FOR A ROW THAT NAMES NO
+ * OWNER — it can no longer override a row that does. That is the whole
+ * difference between this and `ownedByFilter` above, whose bare arm is what
+ * lets a festival event turn up on a venue's page.
+ *
+ * ⛔ SCENE HAS NO FESTIVAL DASHBOARD (`PROFILE_TYPES.festival.dashPath` is
+ * null), so a festival-owned event is reachable in Scene only through
+ * `ownedByFilter`'s bare account arm. ⚠ That arm is deliberately LEFT ALONE:
+ * tightening it in the same pass would make `Echo Valley 2026` unreachable.
+ *
+ * @param venueProfileId the venue profile whose dashboard this is
+ */
+export function venueEventsFilter(userId, venueProfileId) {
+  const arms = [];
+  if (venueProfileId) {
+    arms.push(`owner_profile_id.eq.${venueProfileId}`);   // nights this venue runs
+    arms.push(`venue_profile_id.eq.${venueProfileId}`);   // nights held here by others
+  }
+  /* ⛔ Only for rows that name no owner at all. */
+  if (userId) arms.push(`and(host_id.eq.${userId},owner_profile_id.is.null)`);
+  return arms.join(',');
+}
