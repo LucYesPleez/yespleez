@@ -2,9 +2,8 @@
  * PUTTING SOMEBODY ON A BILL RESOLVES WHAT THEY ASKED.
  *
  * The planner is pure, so every rule that matters is testable here: who counts
- * as the same person, which enquiry belongs to which night, what must never be
- * resolved, and what the schema will not let us resolve yet. The writes and the
- * notification are browser plumbing.
+ * as the same person, which enquiry belongs to which night, and what must never
+ * be resolved. The writes and the notification are browser plumbing.
  */
 
 import test from 'node:test';
@@ -43,10 +42,10 @@ test('⛔⛔ booking never writes `accepted` — that is the host saying yes to 
   assert.equal(RESOLVED_BY_BOOKING, 'booked');
 });
 
-test('⛔ applications are not writable until the L4 constraint admits the state', () => {
-  // applications_status_check admits pending/seen/shortlisted/accepted/
-  // declined/cancelled plus four legacy spellings. `booked` raises 23514.
-  assert.deepEqual(RESOLVABLE_TABLES, ['venue_enquiries']);
+test('⭐ both tables take the state — applications joined once its CHECK admitted it', () => {
+  // `applications_status_check` was widened on 2026-09-04; four production rows
+  // hold `booked`. ⛔ L5 must keep it or it rejects them.
+  assert.deepEqual(RESOLVABLE_TABLES, ['venue_enquiries', 'applications']);
 });
 
 /* ── What counts as still waiting ────────────────────────────────────────── */
@@ -84,7 +83,7 @@ test('⛔⛔ a hand-typed act resolves nothing — no profile, nothing of theirs
     enquiries: [enq()],
   });
   assert.deepEqual(plan.enquiryIds, []);
-  assert.deepEqual(plan.blockedApplicationIds, []);
+  assert.deepEqual(plan.applicationIds, []);
   assert.equal(plan.notify, null);
 });
 
@@ -96,35 +95,37 @@ test('⛔ one account, two profiles: booking the DJ never resolves the band', ()
     applications: [app({ id: 'app-band', from_profile_id: 'prof-the-band', artist_id: 'acct-1' })],
     enquiries: [enq({ applicant_profile_id: 'prof-the-band' })],
   });
-  assert.deepEqual(plan.blockedApplicationIds, []);
+  assert.deepEqual(plan.applicationIds, []);
   assert.deepEqual(plan.enquiryIds, []);
 });
 
-/* ── Applications: planned, reported, not written ────────────────────────── */
+/* ── Applications ────────────────────────────────────────────────────────── */
 
-test('an open application is REPORTED as blocked, never silently dropped', () => {
+test('an open application on this event is resolved', () => {
   const plan = planAnswerRequests({ member: MEMBER, event: EVENT, applications: [app()] });
-  assert.deepEqual(plan.blockedApplicationIds, ['app-1']);
+  assert.deepEqual(plan.applicationIds, ['app-1']);
 });
 
-test('⛔⛔ an application alone tells nobody anything — nothing actually moved', () => {
+test('an application alone is enough to tell them', () => {
   const plan = planAnswerRequests({ member: MEMBER, event: EVENT, applications: [app()] });
-  assert.equal(plan.notify, null,
-    'announcing a resolution the constraint refused is worse than silence');
+  assert.ok(plan.notify, 'something moved, so the person hears about it');
 });
 
 test('⛔ an application to a DIFFERENT event is untouched', () => {
   const plan = planAnswerRequests({
     member: MEMBER, event: EVENT, applications: [app({ event_id: 'evt-other' })],
   });
-  assert.deepEqual(plan.blockedApplicationIds, []);
+  assert.deepEqual(plan.applicationIds, []);
+  assert.equal(plan.notify, null);
 });
 
-test('⭐⭐ the applicant’s own ADD TO LINEUP is not counted twice', () => {
+test('⭐⭐ the applicant’s own ADD TO LINEUP does not announce itself twice', () => {
+  // planAddToBill already answered and announced this exact row.
   const plan = planAnswerRequests({
     member: MEMBER, event: EVENT, applications: [app()], skipApplicationId: 'app-1',
   });
-  assert.deepEqual(plan.blockedApplicationIds, []);
+  assert.deepEqual(plan.applicationIds, []);
+  assert.equal(plan.notify, null);
 });
 
 /* ── ⚠⚠ Enquiries, and the three-venues trap ─────────────────────────────── */
@@ -175,7 +176,7 @@ test('⭐⭐ asked twice, told once', () => {
     member: MEMBER, event: EVENT, applications: [app()], enquiries: [enq()],
   });
   assert.deepEqual(plan.enquiryIds, ['enq-1']);
-  assert.deepEqual(plan.blockedApplicationIds, ['app-1']);
+  assert.deepEqual(plan.applicationIds, ['app-1']);
   assert.ok(plan.notify, 'one notification, not one per row');
   // ⛔ Neither noun, because one message may resolve either or both.
   assert.doesNotMatch(plan.notify.message, /application|enquiry/i);
@@ -188,7 +189,7 @@ test('nothing open means nothing written and nobody told', () => {
     applications: [app({ status: 'accepted' })], enquiries: [enq({ status: 'declined' })],
   });
   assert.deepEqual(plan.enquiryIds, []);
-  assert.deepEqual(plan.blockedApplicationIds, []);
+  assert.deepEqual(plan.applicationIds, []);
   assert.equal(plan.notify, null);
 });
 

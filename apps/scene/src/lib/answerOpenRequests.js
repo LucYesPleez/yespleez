@@ -42,19 +42,24 @@
  * because I was booked" stays separable from "the host said yes to my ask" for
  * whatever the ratified semantics of `accepted` turn out to be.
  *
- * ── ⛔⛔ `applications` CANNOT TAKE THIS STATE YET, AND MUST NOT BE FAKED ────
+ * ── ⭐ `applications` NOW ADMITS THE STATE (2026-09-04) ─────────────────────
  *
- * `applications_status_check` (migration L4, APPLIED) admits exactly
+ * This module was first written while `applications_status_check` admitted only
  * `pending · seen · shortlisted · accepted · declined · cancelled` plus four
- * legacy spellings. `booked` is NOT among them, so writing it raises 23514, and
- * L5 — written, not yet run — narrows the list further. L4's own header states
- * the rule this obeys: "code that sends a kind the constraint rejects is an
- * OUTAGE."
+ * legacy spellings, so applications were PLANNED and REPORTED but never
+ * written — a `booked` write would have raised 23514. The constraint was
+ * widened the same day and four rows were backfilled to `booked`, so that
+ * blockage is gone and the code no longer pretends otherwise.
  *
- * ⭐ So applications are PLANNED and REPORTED, ⛔ never written, until a
- * migration admits the state. ⛔ Do NOT "unblock" this by falling back to
- * `accepted`: that is precisely the universal side effect that was refused, and
- * it would be indistinguishable afterwards from a decision a host really made.
+ * ⚠⚠ L5 IS STILL UNRUN AND WOULD HAVE REJECTED THOSE ROWS as originally
+ * written; it now carries `booked` explicitly. ⛔ Whoever narrows this
+ * vocabulary again must keep it — L4's own header states the rule: "code that
+ * sends a kind the constraint rejects is an OUTAGE."
+ *
+ * ⛔⛔ AND STILL NEVER `accepted`. That was the universal side effect the owner
+ * refused, and afterwards it would be indistinguishable from a decision a host
+ * really made. `accepted` = the host said yes to an ask. `booked` = the person
+ * is on the bill. ⛔ Two states, two meanings, never collapsed.
  */
 
 /**
@@ -73,14 +78,14 @@ import { rawStatusesFor } from './enquiryUtils';
 export const RESOLVED_BY_BOOKING = 'booked';
 
 /**
- * ⛔⛔ THE TABLES THIS MAY WRITE, AND WHY THE LIST IS SHORT.
+ * ⭐ THE TABLES THIS MAY WRITE. Both, since 2026-09-04.
  *
  * `venue_enquiries.status` carries no CHECK constraint and its readers already
- * understand `booked`. `applications.status` does carry one and does not admit
- * it. ⭐ When the migration lands, add 'applications' here and delete the
- * `blocked` arm below — those two edits are the whole change.
+ * understood `booked`. `applications.status` does carry one, and it admits
+ * `booked` as of the widening that day — verified against production, where
+ * four applications now hold it.
  */
-export const RESOLVABLE_TABLES = ['venue_enquiries'];
+export const RESOLVABLE_TABLES = ['venue_enquiries', 'applications'];
 
 /**
  * ⭐ DERIVED FROM THE ONE STATUS MAP, ⛔ never hand-typed beside it.
@@ -161,21 +166,17 @@ export function enquiryBelongsToEvent(enq, event) {
  *   already answers and announces the application it was handed. Passing that
  *   id here is what stops the applicant's own ADD TO LINEUP button saying the
  *   same thing twice, in two rows, one second apart.
- * @returns {{enquiryIds:string[], blockedApplicationIds:string[], notify:object|null}}
+ * @returns {{enquiryIds:string[], applicationIds:string[], notify:object|null}}
  */
 export function planAnswerRequests({
   member, event, applications = [], enquiries = [], skipApplicationId = null,
 } = {}) {
-  const none = { enquiryIds: [], blockedApplicationIds: [], notify: null };
+  const none = { enquiryIds: [], applicationIds: [], notify: null };
 
   const subject = requestSubjectId(member);
   if (!subject || !event?.id) return none;
 
-  /* ⚠ PLANNED BUT NOT WRITABLE — see the header. Surfaced so the caller can
-     count them and so the backfill has something to compare against, ⛔ never
-     quietly dropped: an unresolvable row is a fact about the schema, not an
-     absence. */
-  const blockedApplicationIds = (applications || [])
+  const applicationIds = (applications || [])
     .filter(a => a?.event_id === event.id
       && a.from_profile_id === subject
       && a.id !== skipApplicationId
@@ -188,20 +189,20 @@ export function planAnswerRequests({
       && enquiryBelongsToEvent(e, event))
     .map(e => e.id);
 
-  if (!enquiryIds.length) return { ...none, blockedApplicationIds };
+  if (!enquiryIds.length && !applicationIds.length) return none;
 
   return {
     enquiryIds,
-    blockedApplicationIds,
+    applicationIds,
     /**
      * ⭐⭐ ONE NOTIFICATION FOR THE PERSON, ⛔ NOT ONE PER ROW. Somebody who
      * asked twice about one night would otherwise hear back twice, which reads
      * as two separate bookings.
      *
-     * ⛔⛔ ONLY WHEN SOMETHING ACTUALLY MOVED. A notification for a row that is
-     * still `pending` because the constraint refused it is worse than silence:
-     * it tells somebody they are resolved while every surface still shows them
-     * waiting.
+     * ⛔⛔ ONLY WHEN SOMETHING ACTUALLY MOVED. A notification for a row still
+     * sitting at `pending` is worse than silence: it tells somebody they are
+     * resolved while every surface still shows them waiting. The executor
+     * enforces the other half of this — a failed write sends nothing.
      *
      * ⚠ THE COPY NAMES NO NOUN, deliberately: one message may resolve an
      * enquiry, an application, or both. ⛔ It must not say "booked" in the slot
@@ -238,12 +239,12 @@ export function planAnswerRequests({
  *
  * @param opts.notify the notification writer, injected. ⛔ Not imported — see
  *   the note at the top of the imports.
- * @returns {{resolved:number, blocked:number, notified:boolean, error:string|null}}
+ * @returns {{resolved:number, notified:boolean, error:string|null}}
  */
 export async function answerOpenRequests(db, {
   event, member, skipApplicationId = null, notify = null,
 } = {}) {
-  const quiet = { resolved: 0, blocked: 0, notified: false, error: null };
+  const quiet = { resolved: 0, notified: false, error: null };
 
   const subject = requestSubjectId(member);
   if (!subject || !event?.id) return quiet;
@@ -283,12 +284,22 @@ export async function answerOpenRequests(db, {
     skipApplicationId,
   });
 
-  const blocked = plan.blockedApplicationIds.length;
-  if (!plan.enquiryIds.length) return { ...quiet, blocked };
+  const resolving = plan.enquiryIds.length + plan.applicationIds.length;
+  if (!resolving) return quiet;
 
-  const { error } = await db.from('venue_enquiries')
-    .update({ status: RESOLVED_BY_BOOKING })
-    .in('id', plan.enquiryIds);
+  /* ⚠ BOTH TABLES TAKE THE SAME STATE, and both may be empty. `applications`
+     joined this list on 2026-09-04 when its CHECK was widened; before that it
+     could only be counted, never written. */
+  const writes = [];
+  if (plan.enquiryIds.length) {
+    writes.push(db.from('venue_enquiries')
+      .update({ status: RESOLVED_BY_BOOKING }).in('id', plan.enquiryIds));
+  }
+  if (plan.applicationIds.length) {
+    writes.push(db.from('applications')
+      .update({ status: RESOLVED_BY_BOOKING }).in('id', plan.applicationIds));
+  }
+  const error = (await Promise.all(writes)).find(r => r?.error)?.error || null;
 
   /**
    * ⛔⛔ NO RESOLUTION, NO ANNOUNCEMENT. ⚠ RLS FILTERS AN UPDATE, IT DOES NOT
@@ -296,12 +307,11 @@ export async function answerOpenRequests(db, {
    * how 22 events came to be silently uneditable. So a failure here suppresses
    * the notification rather than sending one for a status that did not move.
    */
-  if (error) return { resolved: 0, blocked, notified: false, error: error.message };
+  if (error) return { resolved: 0, notified: false, error: error.message };
 
   const notifyError = plan.notify && notify ? await notify(plan.notify) : null;
   return {
-    resolved: plan.enquiryIds.length,
-    blocked,
+    resolved: resolving,
     notified: !!plan.notify && !!notify && !notifyError,
     error: notifyError ? notifyError.message || String(notifyError) : null,
   };
