@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  A whole page that is nothing but the widget, so an embed builder that only
+  offers "paste a URL" (rather than "paste HTML") can still carry it:
+
+      https://yespleez.com/embed/venue-events.html?venue=<profile uuid>
+
+  ⛔ It adds NO rules of its own. It reads the venue id off the query string,
+  hands it to the same `venue-events.js` every HTML embed uses, and gets out of
+  the way — a second implementation of the widget is exactly the thing this
+  file must never become.
+
+  ⚠ `noindex` because this page is a fragment. Left indexable it would compete
+  in search with the venue's real page and with YesPleez's own.
+-->
+<meta name="robots" content="noindex">
+<title>YesPleez — venue events</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { padding: 8px; }
+</style>
+</head>
+<body>
+<div id="mount"></div>
+<script>
+  /* ⛔ setAttribute, not innerHTML — the value comes from the query string, so
+     it is attacker-controlled on any URL a stranger can send. The widget
+     itself refuses anything that is not a uuid-shaped id the API accepts. */
+  var params = new URLSearchParams(location.search);
+  var mount = document.getElementById('mount');
+  mount.setAttribute('data-yespleez-venue', params.get('venue') || '');
+  if (params.get('limit')) mount.setAttribute('data-yespleez-limit', params.get('limit'));
+</script>
+<script src="./venue-events.js"></script>
+</body>
+</html>
