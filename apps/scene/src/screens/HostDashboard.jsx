@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
@@ -39,7 +39,7 @@ import { setTimesEnabled, withSetTimesEnabled } from '../lib/eventSetTimes';
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
    no longer WRITES membership, so `planAddToBill`/`addToBill` went with the
    action. Reading the bill is triage; changing it is the workspace. */
-import { findExistingMember } from '../lib/lineupFromApplication';
+import { findExistingMember, pipelineApplications } from '../lib/lineupFromApplication';
 /* ⭐⭐ THE SAME EXECUTOR THE EVENT PAGE USES. ⛔ Not a copy of its rules — this
    screen may not decide what a removal destroys or who hears about it. */
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../lib/lineupActions';
@@ -54,7 +54,8 @@ import AvailabilitySection from '../components/AvailabilitySection';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
-import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { cancelEnquiry } from '../lib/cancelEnquiry';
+import { withDirection, normaliseStatus, rawStatusesFor, clearedColumnFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import QrCodesSection from '../components/QrCodesSection';
@@ -139,6 +140,24 @@ export default function HostDashboard({ userId: userIdProp }) {
   const followDrag = useDragScroll('host-dashboard-following');
   const appsLoaded    = useRef(false);
   const lineupsLoaded = useRef(false);
+  /**
+   * ⛔⛔ THIS WAS USED IN TWO HANDLERS AND DECLARED IN NEITHER — a bare
+   * ReferenceError that `vite build` compiles happily and the test suite never
+   * sees, because a source-text test does not execute anything.
+   *
+   * ⚠⚠ THE SYMPTOM WAS "CLEAR AND CANCEL DO NOTHING", and the two failed
+   * DIFFERENTLY, which is what made it confusing: `handleClearEnquiry` threw at
+   * `clearedColumnFor` (also unimported) BEFORE its write, so nothing happened
+   * at all; `handleCancelEnquiry` threw AFTER `cancelEnquiry` had already
+   * written, so the row was genuinely cancelled in the database while the list
+   * on screen never refreshed. One looked broken, the other looked ignored.
+   *
+   * ⭐ Same class as the `fromProfileId` ReferenceError in ArtistDashboard's
+   * offer handler, and caught the same way it was: by reading the code after
+   * the database disagreed with the screen. ⚠ `oxlint --deny no-undef` is what
+   * sees this class; the default rules do not.
+   */
+  const queryClient   = useQueryClient();
 
   const { data, isLoading: loadingEvents } = useQuery({
     queryKey: ['hostDashboard', userId],
@@ -832,13 +851,51 @@ export default function HostDashboard({ userId: userIdProp }) {
     queryClient.invalidateQueries({ queryKey: ['hostDashboard', userId] });
   }
 
+  /**
+   * ⛔⛔ THIS PANEL HOLDS TWO TABLES, AND THIS HANDLER KNEW ABOUT ONE.
+   *
+   * `panelEnquiries` is `mappedEnquiries` (APPLICATIONS, filtered to events
+   * this promoter owns) merged with `mappedOutgoing` (VENUE_ENQUIRIES they
+   * sent). Every id was looked up in `allApps` alone, so an outgoing enquiry
+   * fell straight through `if (!app) return` — CANCEL ENQUIRY wrote nothing,
+   * said nothing, and closed the sheet. Worse, a promoter who owns NO events
+   * never even loads `allApps`, so every one of their outgoing enquiries was
+   * uncancellable at every status.
+   *
+   * ⚠ THE DISCRIMINATOR IS `venue_profile_id`, the same one `handleClearEnquiry`
+   * already uses — applications mapped into the enquiry shape do not carry it.
+   * ⛔ Do not switch on `direction`: it is derived and viewer-relative, and an
+   * application can be incoming too.
+   */
   async function handleEnquiryRespond(id, status) {
+    const enq = panelEnquiries.find(e => e.id === id);
+    if (enq?.venue_profile_id) {
+      /* ⛔ A promoter cannot ANSWER their own ask — the venue decides that.
+         Withdrawing it is the one move that is theirs, so it is the only
+         status this leg accepts. */
+      if (status !== 'cancelled') return;
+      await handleCancelEnquiry(enq);
+      return;
+    }
     // ⛔ ONLY the promoter's INCOMING applications are theirs to answer. An
     // enquiry they SENT is the venue's to decide; a status write from this side
     // would be the asker marking their own request accepted.
     const app = allApps.find(a => a.id === id);
     if (!app) return;
     await respondApp(id, status, app.artist_id, evtMap[app.event_id]?.name);
+  }
+
+  /**
+   * ⭐ WITHDRAWING AN ASK THIS PROMOTER SENT. The write and the venue's notice
+   * both live in `lib/cancelEnquiry` so this screen and ArtistDashboard cannot
+   * disagree about what cancelling means — they already had, which is why one
+   * of them wrote `declined`.
+   */
+  async function handleCancelEnquiry(enq) {
+    if (!profile?.id) return;
+    const { error } = await cancelEnquiry(enq, profile.id, profile.name);
+    if (error) return;
+    queryClient.invalidateQueries({ queryKey: ['hostDashboard', userId] });
   }
 
   // Needs attention
@@ -1126,7 +1183,21 @@ export default function HostDashboard({ userId: userIdProp }) {
                  thing it controls come to disagree. */
               const stUnlocked  = !!setTimesUnlocked[ev.id];
               const toggleSetTimes = () => setSetTimesUnlocked(prev => ({ ...prev, [ev.id]: !stUnlocked }));
-              const evPipeline  = newApps.filter(a => a.event_id === ev.id);
+              /**
+               * ⭐⭐ NOBODY ON THE BILL IS AWAITING A DECISION — the same
+               * defensive invariant the event page's PIPELINE carries, applied
+               * on the surface that shows the two lists side by side. `members`
+               * here IS the bill: `buildHostLineup` is handed `billMembers` and
+               * the mixed array is refused upstream.
+               *
+               * ⛔ A GUARD, ⛔ NOT THE REPAIR. Booking somebody is what should
+               * resolve their request; this only stops the contradiction being
+               * presented as a question the host still has to answer.
+               */
+              const evPipeline  = pipelineApplications(
+                newApps.filter(a => a.event_id === ev.id),
+                (members || []).map(r => r.member),
+                a => appProfiles[a.id] || null);
               /**
                * ⭐⭐ THE SHORTLIST IS TWO SOURCES, matching `EventHostView`.
                *
