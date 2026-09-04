@@ -565,9 +565,7 @@
        ⚠ Only when the feed actually named a venue url — ⛔ never a dead button. */
     var venueUrl = data.venue && safeUrl(data.venue.url);
     if (venueUrl) {
-      var label = data.venue.name
-        ? "See more about what's coming up at " + data.venue.name
-        : "See more about what's coming up";
+      var label = data.venue.name ? 'See more from ' + data.venue.name : 'See more events';
       var more = el('a', 'ypz-ve-more', label);
       more.href = venueUrl;
       more.target = '_blank';

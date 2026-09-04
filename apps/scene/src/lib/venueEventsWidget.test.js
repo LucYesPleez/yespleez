@@ -214,7 +214,7 @@ test('⚠ VIEW EVENT is a SPAN — an anchor inside an anchor is invalid', () =>
 });
 
 test('⭐ the footer offers the way back to the venue\'s whole YesPleez page', () => {
-  assert.match(CODE, /"See more about what's coming up at " \+ data\.venue\.name/);
+  assert.match(CODE, /'See more from ' \+ data\.venue\.name/);
   assert.match(CODE, /var venueUrl = data\.venue && safeUrl\(data\.venue\.url\)/);
   assert.match(CODE, /if \(venueUrl\) \{/, '⛔ never a dead button when the feed named no url');
   assert.match(CODE, /'Events powered by '/);
