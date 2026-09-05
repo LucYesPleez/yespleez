@@ -97,8 +97,31 @@ const SCENE_ROLE_TYPES = {
     accent2:     '#FF8C42',
     muted:       '#4D3B14',   // dark amber
     emoji:       '🎸',
-    label:       'BAND',
-    shortLabel:  'BAND',
+    /**
+     * ⭐⭐ THE ROLE IS "BAND / MUSICIAN" (owner, 2026-09-05). A solo musician is
+     * this role too, and "BAND" alone told them they were not — the audit found
+     * "Muso" already spoken in three surfaces while the canonical label said
+     * something narrower than the role it names.
+     *
+     * ⚠⚠ THIS IS THE FIRST TIME THE SPLIT IS REAL FOR THIS ROLE. Both values
+     * were 'BAND', so no surface could ever have been WRONG about which it
+     * picked. They differ now, and the routing starts to matter: ~18 badge,
+     * pill, chip and subtitle surfaces take `shortLabel`; the role picker,
+     * editor tabs, claim dialog and message-as sheet take `label`.
+     *
+     * ⭐ `label` SPELLS THE ROLE OUT because it appears where somebody DECIDES
+     * what they are. ⛔ Contrast `artist`, whose label is the abbreviation
+     * 'DJ / PROD.' — `RoleSelectorScreen` had to override it locally to say
+     * "DJ / PRODUCER" in the picker. This role needs no such override, and ⛔ an
+     * abbreviation must never be put back in `label` to save room; that is what
+     * `shortLabel` is for.
+     *
+     * ⛔ THE KEY STAYS `band`. `profiles.type`, `/industry/band`,
+     * `band_avatars`, `band_type` and the stored `BANDS` taxonomy key are all
+     * untouched — this is display copy, not identity.
+     */
+    label:       'BAND / MUSICIAN',
+    shortLabel:  'BAND / MUSO',
     pathPrefix:  'band_avatars',
     dashPath:    '/industry/band',
     gradient:    'linear-gradient(90deg, #FFB830, #FF8C42)',
