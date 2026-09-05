@@ -50,6 +50,19 @@ test('⭐ it follows the established shape — key, label, enabled + a VISIBLE l
   assert.deepEqual(VISIBLE_BAND_ROLES, BAND_ROLES.filter(r => r.enabled));
 });
 
+test('⛔⛔ ENSEMBLE is RETIRED but its key still drops from genres', () => {
+  /* Owner, 2026-09-05: no longer offered. ⚠ The row is kept `enabled: false`
+     rather than deleted, because deleting it would drop `ensemble` from
+     ALL_ROLE_KEYS and any profile already holding the key would start printing
+     it as a genre — the `dj_prod` leak, reintroduced by a tidy-up. */
+  assert.ok(!VISIBLE_BAND_ROLES.some(r => r.key === 'ensemble'), 'not offered');
+  assert.deepEqual(VISIBLE_BAND_ROLES.map(r => r.key), ['solo', 'duo', 'trio', 'band']);
+  assert.ok(BAND_ROLES.some(r => r.key === 'ensemble'), 'the key is still known');
+  assert.deepEqual(genreLabels(['ensemble', 'Rock'].join(GENRE_SEP)), ['Rock'], 'still dropped');
+  // and a profile that already stored it still reads back as ENSEMBLE
+  assert.deepEqual(selectedBandRoleLabels('ensemble'), ['ENSEMBLE']);
+});
+
 /* ── 3-4 · multi-select, and it survives a round trip ────────────────────── */
 
 test('3 · more than one act type can be selected', () => {

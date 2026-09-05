@@ -161,7 +161,13 @@ export const BAND_ROLES = [
   { key: 'duo',      label: 'DUO',      enabled: true },
   { key: 'trio',     label: 'TRIO',     enabled: true },
   { key: 'band',     label: 'BAND',     enabled: true },
-  { key: 'ensemble', label: 'ENSEMBLE', enabled: true },
+  /* ⛔ ENSEMBLE IS RETIRED (owner, 2026-09-05) — it is no longer offered.
+     ⚠⚠ THE ROW STAYS, `enabled: false`, AND THAT IS DELIBERATE. Deleting it
+     outright would drop `ensemble` from `ALL_ROLE_KEYS`, and any profile that
+     already stored the key would start PRINTING it as a genre on its lineup
+     card. That is the `dj_prod` leak exactly. Disabled keeps it out of the
+     picker while `genreLabels` still knows to drop it. */
+  { key: 'ensemble', label: 'ENSEMBLE', enabled: false },
 ];
 
 export const VISIBLE_BAND_ROLES = BAND_ROLES.filter(r => r.enabled);
