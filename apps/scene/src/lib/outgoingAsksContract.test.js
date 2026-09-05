@@ -126,10 +126,19 @@ test('the row badge reads the canonical bucket, never a second vocabulary', () =
 test('the tab counts and the stat tile count the same list the tab renders', () => {
   assert.match(DASH, /outCounts = Object\.fromEntries\([\s\S]{0,220}outStatuses\.filter\(it => it\.bucket === sub\.toLowerCase\(\)\)\.length/,
     'the sub-tab counts must come from the same bucketed list the tab renders');
-  assert.match(DASH, /OUTGOING: outgoingItems\.length/,
-    'the OUTGOING direction tab still counts applications only');
-  assert.match(DASH, /value: loading \? '—' : outgoingItems\.length/,
-    'the stat tile disagrees with the tab it opens');
+  /* UPDATED 2026-09-05 - THIS TEST PINNED THE BUG ITS OWN NAME FORBIDS.
+     It asserted `outgoingItems.length` in BOTH the tab badge and the stat tile:
+     the two agreed with each other, which is what it checked, but they agreed
+     on the RAW pile while the list beneath them renders the fade-filtered one.
+     Owner saw OUTGOING 3 over four empty sub-tabs; those three rows were
+     declined enquiries aged 33, 51 and 61 days, all past DECLINE_FADE_DAYS.
+     All three readers now count `outStatuses`. */
+  assert.match(DASH, /OUTGOING: outStatuses\.length,/,
+    'the OUTGOING direction badge counts what the tab can render');
+  assert.match(DASH, /value: loading \? '—' : outStatuses\.length,/,
+    'the stat tile counts what the tab it opens will render');
+  assert.ok(!/outgoingItems\.length/.test(DASH),
+    'no reader may count the pre-fade pile')
 });
 
 /**

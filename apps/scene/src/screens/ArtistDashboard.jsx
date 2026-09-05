@@ -547,7 +547,17 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
      counted both would promise a list BOOKED no longer renders. */
   const dirCounts = {
     INCOMING: offers.length,
-    OUTGOING: outgoingItems.length,
+    /* ⛔⛔ `outStatuses`, ⛔ NOT `outgoingItems` — THE FADE MUST BE APPLIED HERE
+       TOO. The note above `outStatuses` already says a badge counting rows the
+       list will not show "is the bug that makes people tap an empty tab"; the
+       fade was applied to the SUB-TAB counts and to the list, and missed here,
+       so the top-level tile kept counting the raw pile.
+       ⚠ Owner hit it 2026-09-05 on a band profile: the tile read OUTGOING 3
+       while every sub-tab was empty. The three rows were declined enquiries
+       aged 33, 51 and 61 days — all past DECLINE_FADE_DAYS, so nothing could
+       ever list them. One filtered set feeds the tile, the sub-tab badges and
+       the rows, so the three cannot disagree again. */
+    OUTGOING: outStatuses.length,
     BOOKED:   upcomingGigs.length,
     HISTORY:  pastGigs.length,
   };
@@ -678,7 +688,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
            the kind of quiet disagreement nobody reports and everybody
            distrusts. Relabelled for the same reason: an availability enquiry
            is not an application. */
-        { label: 'OUTGOING', value: loading ? '—' : outgoingItems.length,                  accent: '#00E5FF', accentRgb: '0,229,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
+        { label: 'OUTGOING', value: loading ? '—' : outStatuses.length,                   accent: '#00E5FF', accentRgb: '0,229,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
         { label: 'OFFERS',       value: loading ? '—' : offersCount,                      accent: '#BF5FFF', accentRgb: '191,95,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('INCOMING'); } },
         /* ⚠ UPCOMING ONLY, matching the tab it opens (owner, 2026-08-31). It
            read upcoming+past and landed on BOOKED, which since HISTORY split
