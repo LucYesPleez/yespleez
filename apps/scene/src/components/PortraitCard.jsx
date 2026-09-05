@@ -70,20 +70,41 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const type = String(p?.type || '').toLowerCase();
   const pt = profileIdentity(type);
   const label = pt.shortLabel;
-  /* ⚠ BAND IS ADDITIVE, the other two REPLACE — same reasoning as ProfileScreen
-     and for the same reason: a DJ's role label IS the type, a band's act type
-     ('SOLO', 'DUO') is not. ⛔ Replacing here would take BAND / MUSO off the
-     card. */
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string)
     : type === 'artist' ? selectedArtistRoleLabels(p?.genre_string)
     : [];
+  /**
+   * ⭐⭐ ON THIS CARD THE ACT TYPE REPLACES THE TYPE LABEL, AND ONLY ONE SHOWS.
+   *
+   * Owner, 2026-09-05: "ive clicked band in the act type, so BAND / MUSO can
+   * go, thats just the default" — and "theres no need to have 2 or more act
+   * types on a portrait card". So the label is the FALLBACK, not a companion:
+   * an act that has said what it is says that instead.
+   *
+   * ⚠⚠ IT WAS ADDITIVE AND IT DID NOT FIT. Measured at this card's own font
+   * (700 9px DM Sans, letter-spacing .8, 8px padding, 6px gap) against the
+   * 140px this row has: `BAND / MUSO + SOLO + DUO` is 177px and
+   * `BAND / MUSO + ENSEMBLE` was 159px. The row is `position:absolute;
+   * right:10` with no wrap inside `overflow:hidden`, so the excess did not
+   * shrink or error — it CLIPPED OFF THE LEFT EDGE SILENTLY. Every case now
+   * fits: SOLO 43px, BAND 44px, BAND / MUSO 84px.
+   *
+   * ⛔ THE PROFILE HEADER IS DELIBERATELY NOT THIS. It has the room, so it
+   * still shows BAND / MUSICIAN alongside every selected act type — see
+   * ProfileScreen. This rule is about a 150px card, ⛔ not about the concept.
+   *
+   * ⚠ `[0]` rather than a join: two act types on one line is what overflowed.
+   * The full set is on the profile.
+   */
   const actLabels = type === 'band' ? selectedBandRoleLabels(p?.genre_string) : [];
   // `label` is null for a Personal profile (PUNTER_PROFILE), which is how the
   // type chip is suppressed — a punter is just a person, and a chip reading
   // "PROFILE" told the reader nothing they could act on. `.filter(Boolean)`
   // rather than a branch, so any future identity without a label inherits the
   // same behaviour instead of rendering an empty pill.
-  const pillLabels = (roleLabels.length ? roleLabels : [label, ...actLabels]).filter(Boolean);
+  const pillLabels = (roleLabels.length ? roleLabels
+    : actLabels.length ? [actLabels[0]]
+    : [label]).filter(Boolean);
   /**
    * THE TOWN ONLY — no state, no postcode.
    *
