@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
-import { selectedPerformanceRoleLabels, selectedArtistRoleLabels } from '../lib/profileTaxonomy';
+import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, selectedBandRoleLabels } from '../lib/profileTaxonomy';
 import { profileIdentity } from '../lib/profileTypes';
 import { getContrastText } from '../lib/color';
 import UnclaimedBadge from './UnclaimedBadge';
@@ -70,15 +70,20 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const type = String(p?.type || '').toLowerCase();
   const pt = profileIdentity(type);
   const label = pt.shortLabel;
+  /* ⚠ BAND IS ADDITIVE, the other two REPLACE — same reasoning as ProfileScreen
+     and for the same reason: a DJ's role label IS the type, a band's act type
+     ('SOLO', 'DUO') is not. ⛔ Replacing here would take BAND / MUSO off the
+     card. */
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string)
     : type === 'artist' ? selectedArtistRoleLabels(p?.genre_string)
     : [];
+  const actLabels = type === 'band' ? selectedBandRoleLabels(p?.genre_string) : [];
   // `label` is null for a Personal profile (PUNTER_PROFILE), which is how the
   // type chip is suppressed — a punter is just a person, and a chip reading
   // "PROFILE" told the reader nothing they could act on. `.filter(Boolean)`
   // rather than a branch, so any future identity without a label inherits the
   // same behaviour instead of rendering an empty pill.
-  const pillLabels = (roleLabels.length ? roleLabels : [label]).filter(Boolean);
+  const pillLabels = (roleLabels.length ? roleLabels : [label, ...actLabels]).filter(Boolean);
   /**
    * THE TOWN ONLY — no state, no postcode.
    *

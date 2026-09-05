@@ -11,7 +11,7 @@ import SectionBlock from '../components/SectionBlock';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
 import ClaimSuggestion from '../components/ClaimSuggestion';
-import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES } from '../lib/profileTaxonomy';
+import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES, BAND_ROLES, VISIBLE_BAND_ROLES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
@@ -101,7 +101,9 @@ export default function BandProfileScreen() {
 
   // Page 1
   const [name,        setName]        = useState('');
-  const [bandType,    setBandType]    = useState('');
+  /* ⛔ NO `bandType` STATE ANY MORE. The free-text BAND TYPE field it backed is
+     replaced by ACT TYPE chips; the `band_type` COLUMN is untouched in the
+     database and simply no longer read or written here. */
   const [members,     setMembers]     = useState('');
   const [established, setEstablished] = useState('');
   const [location,    setLocation]    = useState('');
@@ -112,6 +114,11 @@ export default function BandProfileScreen() {
   const [selGenres,   setSelGenres]   = useState([]);
   const [selSubs,     setSelSubs]     = useState([]);
   const [selVibes,    setSelVibes]    = useState([]);
+  /* Selected ACT TYPE keys (BAND_ROLES). ⛔ Kept separate from selGenres/
+     selSubs/selVibes even though all four share genre_string: the card-tag
+     pool below is built from the sound lists only, and an act type is identity,
+     ⛔ not a sound descriptor. */
+  const [selActs,     setSelActs]     = useState([]);
   const [selTags,     setSelTags]     = useState([]);
 
   // Page 2
@@ -147,7 +154,8 @@ export default function BandProfileScreen() {
           setAvatarHero(data.avatar_hero || '');
           setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
-          setBandType(data.band_type || '');
+          /* ⚠ `data.band_type` is deliberately NOT read. A profile that holds
+             one still loads fine — the value is simply left where it is. */
           setMembers(data.member_count ? String(data.member_count) : '');
           setEstablished(data.established_year ? String(data.established_year) : '');
           setLocation(data.location || '');
@@ -184,6 +192,11 @@ export default function BandProfileScreen() {
           const isSubToken = t => BAND_SUBGENRES.includes(t) || SUBGENRE_RENAME_MAP[t];
           setSelSubs([...new Set([...parts].filter(isSubToken).map(normalizeSubgenre))]);
           setSelVibes(BAND_VIBES.filter(v => parts.has(v)));
+          /* ⭐ ACT TYPE is stored as role KEYS inside genre_string, the same
+             mechanism ARTIST_ROLES and PERFORMANCE_ROLES already use. ⚠ Read
+             from the same `parts` set the genres come from — one parse, so the
+             two can never disagree about what the column said. */
+          setSelActs(BAND_ROLES.filter(r => parts.has(r.key)).map(r => r.key));
           if (data.card_pills) setSelTags(data.card_pills.split(' · ').filter(Boolean));
         }
         setLoading(false);
@@ -201,16 +214,28 @@ export default function BandProfileScreen() {
   function toggleGenre(g) { setSelGenres(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]); setIsDirty(true); }
   function toggleSub(sub) { setSelSubs(p   => p.includes(sub) ? p.filter(x => x !== sub) : [...p, sub]); setIsDirty(true); }
   function toggleVibe(v)  { setSelVibes(p  => p.includes(v) ? p.filter(x => x !== v) : [...p, v]); setIsDirty(true); }
+  /* Multi-select, like every other chip row here — "solo or duo, depending" is
+     an ordinary answer for a working musician. */
+  function toggleAct(k)   { setSelActs(p   => p.includes(k) ? p.filter(x => x !== k) : [...p, k]); setIsDirty(true); }
   function toggleTag(t)   { setSelTags(p => p.includes(t) ? p.filter(x => x !== t) : p.length >= 5 ? p : [...p, t]); setIsDirty(true); }
 
   function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
     if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
-    const genre_string = [...new Set([...selGenres, ...selSubs, ...selVibes])].join(' · ');
+    /* ⭐ ACT-TYPE KEYS RIDE IN genre_string, alongside genres/subgenres/vibes,
+       exactly as ARTIST_ROLES and PERFORMANCE_ROLES do. ⛔ They are dropped
+       from genre OUTPUT by `genreLabels` (see ALL_ROLE_KEYS) so `solo` can
+       never print as a genre — the `dj_prod` leak. */
+    const genre_string = [...new Set([...selActs, ...selGenres, ...selSubs, ...selVibes])].join(' · ');
     const card_pills   = selTags.join(' · ');
     const payload = {
       user_id: userId, type: 'band',
-      name, band_type: bandType,
+      /* ⛔⛔ `band_type` IS NO LONGER WRITTEN (2026-09). It was a free-text box
+         asking the act-type question in prose; ACT TYPE chips replace it. The
+         COLUMN stays and existing values are left exactly as they are — the one
+         populated row in production holds "Jazz / Blues", a genre, and ⛔ must
+         not be interpreted as an act type or migrated into these keys. */
+      name,
       member_count: members ? parseInt(members) : null,
       established_year: established ? parseInt(established) : null,
       location, state: locState, postcode,
@@ -296,9 +321,6 @@ export default function BandProfileScreen() {
                     gigs and followers attached. Suggests only. */}
                 <ClaimSuggestion name={name} type="band" />
               </Field>
-              <Field label="BAND TYPE">
-                <input className={s.input} value={bandType} onChange={e => setBandType(e.target.value)} placeholder="e.g. Rock Band, Duo, Solo Artist, Ensemble" />
-              </Field>
               <div className={s.row}>
                 <Field label="MEMBERS">
                   <input className={s.input} type="number" min="1" value={members} onChange={e => setMembers(e.target.value)} placeholder="e.g. 4" />
@@ -324,6 +346,29 @@ export default function BandProfileScreen() {
                     <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. 3000" inputMode="numeric" />
                   </Field>
                 </div>
+              </div>
+            </Section>
+
+            {/* ── ACT TYPE ─────────────────────────────────────────────────
+                ⭐⭐ "WHAT KIND OF ACT AM I BOOKING?" — the promoter's first
+                question, and the one a free-text BAND TYPE box was asking in
+                prose. ⛔ NOT a genre question: genre, subgenre and vibes sit
+                below in YOUR SOUND and are untouched.
+
+                ⚠ POSITIONED SECOND, directly after WHO YOU ARE and BEFORE
+                YOUR SOUND, mirroring the DJ editor's "WHAT DO YOU DO?" — an act
+                type is what you ARE, not how you sound. ⛔ Deliberately not
+                placed where the DJ's TECHNICAL SETUP sits: that section is
+                twelfth and, unlike this, is displayed nowhere. */}
+            <Section title="ACT TYPE">
+              <div className={s.chips}>
+                {VISIBLE_BAND_ROLES.map(({ key, label }) => (
+                  <button key={key} type="button"
+                    className={selActs.includes(key) ? s.chipOn : s.chip}
+                    style={selActs.includes(key) ? GLASS_CHIP_ON_STYLE : undefined}
+                    onClick={() => toggleAct(key)}
+                  >{label}</button>
+                ))}
               </div>
             </Section>
 

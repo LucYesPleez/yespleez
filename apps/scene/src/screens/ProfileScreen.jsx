@@ -25,7 +25,7 @@ import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
-import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
+import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, selectedBandRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
 import ProfileCard from '../components/ProfileCard';
 import { openDirectConversation, sendableProfiles } from '../lib/messaging';
@@ -1050,9 +1050,11 @@ export default function ProfileScreen() {
   // taxonomy rendered verbatim on a public profile. Genre already has a home
   // in the STYLE section directly below, so the pill was also duplicating it.
   //
-  // act_type is written by nothing in this app and defined by no taxonomy;
-  // band_type is user-set in BandProfileScreen and still stored, just no longer
-  // mistaken for the profile's type.
+  // act_type is written by nothing in this app and defined by no taxonomy.
+  // band_type is a legacy stored column: BandProfileScreen no longer reads or
+  // writes it, and it is never the profile's type. ⛔ It is also NOT the source
+  // of the act type below, which comes from the Band role taxonomy held in
+  // genre_string.
   const label   = pt.label;
   // Standup: one pill per selected "what do you perform?" role (Comedy/
   // Poetry). Artist: same concept for DJ/Producer/MC. Both data-driven so a
@@ -1061,7 +1063,19 @@ export default function ProfileScreen() {
   const roleLabels = isStandup ? selectedPerformanceRoleLabels(profile.genre_string)
     : isArtist ? selectedArtistRoleLabels(profile.genre_string)
     : [];
-  const badgeLabels = roleLabels.length ? roleLabels : [label];
+  /**
+   * ⭐⭐ ACT TYPE IS ADDITIVE FOR A BAND, ⛔ NOT A REPLACEMENT — and this is the
+   * one place band deliberately diverges from the artist/standup pattern.
+   *
+   * ⚠⚠ THOSE TWO REPLACE THE TYPE PILL, and that is correct FOR THEM: a DJ's
+   * role label IS 'DJ / PROD.' and a comedian's is 'COMEDY', so swapping the
+   * generic label for the role loses nothing. A band's act type is 'SOLO' or
+   * 'DUO' — swap it in and the reader is no longer told this is a
+   * BAND / MUSICIAN profile at all. ⛔ The role pill stays; the act type joins
+   * it (owner, 2026-09-05).
+   */
+  const actLabels = isBand ? selectedBandRoleLabels(profile.genre_string) : [];
+  const badgeLabels = roleLabels.length ? roleLabels : [label, ...actLabels];
   // Postcode dropped from this header line specifically — town + state reads
   // cleaner here; formatLocation still returns the full "Suburb, STATE
   // POSTCODE" for every other call site (event cards, dashboards, etc).

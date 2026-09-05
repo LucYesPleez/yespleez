@@ -138,6 +138,34 @@ export const ARTIST_ROLES = [
 
 export const VISIBLE_ARTIST_ROLES = ARTIST_ROLES.filter(r => r.enabled);
 
+// Band act types (2026-09) — the same concept again, for the band/musician type.
+//
+// ⭐⭐ IT ANSWERS "WHAT KIND OF ACT AM I BOOKING?", ⛔ NOT "what genre are you".
+// Genre, subgenre and vibes already answer the second one and are untouched by
+// this. It REPLACES the free-text `BAND TYPE` box, whose single filled-in value
+// across 53 band profiles was "Jazz / Blues" — a genre, typed into the act-type
+// field. One person used it and they used it for the wrong thing, which is the
+// argument for chips rather than prose.
+//
+// ⛔ FIVE, DELIBERATELY. QUARTET is covered by ENSEMBLE, and instruments
+// (vocals, guitar, piano…) are a different question that expands without end —
+// out of scope until this one has real usage. ⚠ APPEND-ONLY like every list
+// here: the KEYS are stored inside genre_string, so an existing key must never
+// be renamed or removed out from under saved profiles.
+//
+// ⚠ Multi-select, because "solo or duo, depending" is an ordinary answer.
+// Labels in CAPS at the source, same rule as PERFORMANCE_ROLES: a card must not
+// render "Solo" beside another card's "VENUE".
+export const BAND_ROLES = [
+  { key: 'solo',     label: 'SOLO',     enabled: true },
+  { key: 'duo',      label: 'DUO',      enabled: true },
+  { key: 'trio',     label: 'TRIO',     enabled: true },
+  { key: 'band',     label: 'BAND',     enabled: true },
+  { key: 'ensemble', label: 'ENSEMBLE', enabled: true },
+];
+
+export const VISIBLE_BAND_ROLES = BAND_ROLES.filter(r => r.enabled);
+
 // Always shown, regardless of which performance role(s) are selected.
 export const SHARED_PERFORMANCE_TAGS = [
   'Political', 'Dark', 'Identity', 'Social Commentary', 'Feel Good', 'Interactive',
@@ -168,6 +196,7 @@ function selectedRoleLabels(genreString, roles) {
 
 export const selectedPerformanceRoleLabels = genreString => selectedRoleLabels(genreString, PERFORMANCE_ROLES);
 export const selectedArtistRoleLabels = genreString => selectedRoleLabels(genreString, ARTIST_ROLES);
+export const selectedBandRoleLabels = genreString => selectedRoleLabels(genreString, BAND_ROLES);
 
 // ⭐⭐ THE INVERSE, AND THE ONE ANY DISPLAY OF genre_string SHOULD USE.
 //
@@ -183,7 +212,12 @@ export const selectedArtistRoleLabels = genreString => selectedRoleLabels(genreS
 // ⛔ Roles are not "missing" from the result — `selectedArtistRoleLabels` is
 // how a surface shows them, with their LABEL. This function is only about the
 // genre list.
-const ALL_ROLE_KEYS = new Set([...PERFORMANCE_ROLES, ...ARTIST_ROLES].map(r => r.key));
+// ⛔⛔ EVERY ROLE LIST MUST BE IN HERE. A key missing from this set prints raw
+// on every surface that shows genres — which is exactly how `dj_prod` came to
+// be rendered as a genre on the lineup card. BAND_ROLES joined 2026-09, so
+// `solo` / `duo` / `trio` / `band` / `ensemble` are dropped from genre output
+// too. ⚠ Add a new role list here in the SAME commit that creates it.
+const ALL_ROLE_KEYS = new Set([...PERFORMANCE_ROLES, ...ARTIST_ROLES, ...BAND_ROLES].map(r => r.key));
 
 export function genreLabels(genreString) {
   return String(genreString || '')
