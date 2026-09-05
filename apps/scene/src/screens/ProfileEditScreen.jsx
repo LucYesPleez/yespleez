@@ -4,15 +4,22 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ProfileEditScreen.module.css';
 import { profileIdentity } from '../lib/profileTypes';
+import { BLURB_SECTION_TITLE } from '../lib/profileBlurbFields';
+import BlurbFields from '../components/BlurbFields';
 import { STATE_OPTIONS } from '../lib/auLocations';
 
-// Screen-specific display flags — not shared metadata, stays local
+// Screen-specific display flags — not shared metadata, stays local.
+// ⛔ `showSound` IS GONE (2026-09). It decided whether this editor offered a
+// sound box at all, and said no for host and venue while their own editors
+// always offered one — so the same profile gained or lost the field depending
+// on which editor you opened. SOUND BIO is canonical for all five types now
+// and lives in lib/profileBlurbFields.js.
 const PROFILE_FLAGS = {
-  artist:  { showMix: true,  showSound: true  },
-  host:    { showMix: false, showSound: false },
-  band:    { showMix: true,  showSound: true  },
-  standup: { showMix: false, showSound: true  },
-  venue:   { showMix: false, showSound: false },
+  artist:  { showMix: true  },
+  host:    { showMix: false },
+  band:    { showMix: true  },
+  standup: { showMix: false },
+  venue:   { showMix: false },
 };
 
 
@@ -168,8 +175,24 @@ export default function ProfileEditScreen() {
         </div>
 
         <Field label="NAME *" value={form.name || ''} onChange={v => set('name', v)} placeholder="Your name or stage name" />
-        <Field label="TAGLINE" value={form.tagline || ''} onChange={v => set('tagline', v)} placeholder="One-liner that describes you" />
-        {flags.showSound && <Field label="SOUND / VIBE" value={form.sound || ''} onChange={v => set('sound', v)} placeholder="e.g. Deep rolling bass, hypnotic rhythms" />}
+
+        {/* YOUR SOUND & STYLE — canonical, see lib/profileBlurbFields.js.
+            ⚠ THIS ROUTE IS LIVE. It is registered in App.jsx and gated in
+            routeAccess.js, and although nothing in the UI links to it, anyone
+            who has the URL reaches a working editor that upserts the same
+            columns. It was the ONLY editor with no limits at all, so it could
+            write a `sound` longer than any other editor allows and longer than
+            the cards that read it can show.
+            ⛔ `flags.showSound` NO LONGER GATES THIS. Host and Venue were set
+            to `showSound: false` here while their own editors have always had
+            the field, so the same profile gained or lost a box depending on
+            which editor you opened. Every type gets both fields. */}
+        <div className={s.sectionTitle}>{BLURB_SECTION_TITLE}</div>
+        <BlurbFields
+          s={s} type={activeType}
+          sound={form.sound || ''} onSoundChange={v => set('sound', v)}
+          tagline={form.tagline || ''} onTaglineChange={v => set('tagline', v)}
+        />
 
         <Field label="GENRES" value={form.genre_string || ''} onChange={v => set('genre_string', v)} placeholder="e.g. Techno · House · Drum & Bass" />
 

@@ -12,6 +12,10 @@ import ClaimSuggestion from '../components/ClaimSuggestion';
 import { MAIN_GENRES, SUBGENRES, VIBES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { BLURB_SECTION_TITLE } from '../lib/profileBlurbFields';
+import BlurbFields from '../components/BlurbFields';
+import DemoMixField from '../components/DemoMixField';
+import { demoMixFieldFor } from '../lib/demoMixField';
 import { STATE_OPTIONS } from '../lib/auLocations';
 import { EXP_LEVELS } from '../lib/profileTaxonomy';
 
@@ -416,16 +420,13 @@ export default function ArtistProfileScreen() {
               </div>
             </Section>
 
-            {/* YOUR SOUND */}
-            <Section title={<>YOUR SOUND <span className={s.sectionHintInline}>shows on your slot card · 35 chars</span></>}>
-              <input className={s.input} value={sound} onChange={e => setSound(e.target.value)} placeholder="e.g. UK Garage Mashups & Dark Electronics" maxLength={35} autoComplete="off" />
-              <div className={s.charCount}>{sound.length} / 35</div>
-            </Section>
-
-            {/* TAGLINE */}
-            <Section title={<>TAGLINE <span className={s.sectionHintInline}>shows on your profile tile · 120 chars</span></>}>
-              <textarea className={s.textarea} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="Peak-time techno from Sydney. Builds slow, hits hard." maxLength={120} rows={2} />
-              <div className={s.charCount}>{tagline.length} / 120</div>
+            {/* YOUR SOUND & STYLE — canonical, see lib/profileBlurbFields.js */}
+            <Section title={BLURB_SECTION_TITLE}>
+              <BlurbFields
+                s={s} type="artist"
+                sound={sound} onSoundChange={setSound}
+                tagline={tagline} onTaglineChange={setTagline}
+              />
             </Section>
 
             {/* GENRES */}
@@ -485,16 +486,12 @@ export default function ArtistProfileScreen() {
               </Section>
             )}
 
-            {/* YOUR DEMO MIX */}
-            <Section title="YOUR DEMO MIX">
-              <p className={s.sectionHint}>This is what promoters listen to first — it's your audition. Keep it current and make it count. We suggest around 20 minutes.</p>
-              <SocialSection
-                links={[{ icon: 'headphones', key: 'mixLink', value: mixLink, onChange: e => setMixLink(e.target.value), placeholder: 'SoundCloud / Mixcloud / YouTube link', noNa: true }]}
-                naFields={naFields}
-                onToggleNa={toggleNa}
-                inputClass={s.input}
-                rowClass={s.socialRow}
-                iconClass={s.socialIcon}
+            {/* YOUR DEMO MIX — canonical, see lib/demoMixField.js */}
+            <Section title={demoMixFieldFor('artist').title}>
+              <DemoMixField
+                s={s} type="artist"
+                value={mixLink} onChange={e => setMixLink(e.target.value)}
+                naFields={naFields} onToggleNa={toggleNa}
               />
             </Section>
 

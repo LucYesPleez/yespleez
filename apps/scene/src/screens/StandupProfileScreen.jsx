@@ -13,6 +13,10 @@ import SocialSection from '../components/SocialSection';
 import ClaimSuggestion from '../components/ClaimSuggestion';
 import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { BLURB_SECTION_TITLE } from '../lib/profileBlurbFields';
+import BlurbFields from '../components/BlurbFields';
+import DemoMixField from '../components/DemoMixField';
+import { demoMixFieldFor } from '../lib/demoMixField';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 
@@ -111,6 +115,16 @@ export default function StandupProfileScreen() {
   const [location,  setLocation]  = useState('');
   const [locState,  setLocState]  = useState('');
   const [postcode,  setPostcode]  = useState('');
+  /* ⛔⛔ `sound` WAS MISSING ENTIRELY UNTIL 2026-09, AND THAT WAS A REAL BUG,
+     not a missing nicety. The editor showed one box labelled TAGLINE under a
+     heading reading YOUR STYLE, and that box wrote `tagline` — a column read by
+     exactly two surfaces. Meanwhile `sound` is what portrait cards, application
+     cards, enquiry cards, the invite sheet, the fill-slot modal and
+     `lineup_members` all read, so every comedian fell through to
+     `genreLabels(genre_string).slice(0,3)` on every surface a promoter uses to
+     decide a booking. ⛔ No data was migrated to fix it: existing taglines stay
+     taglines, and `sound` starts empty until the act writes one. */
+  const [sound,     setSound]     = useState('');
   const [tagline,   setTagline]   = useState('');
   const [videoLink, setVideoLink] = useState('');
   const [selRoles,     setSelRoles]     = useState([]);
@@ -152,6 +166,7 @@ export default function StandupProfileScreen() {
           setLocation(data.location || '');
           setLocState(data.state || '');
           setPostcode(data.postcode || '');
+          setSound(data.sound || '');
           setTagline(data.tagline || '');
           setVideoLink(data.mix_link || data.video_link || '');
           setBio(data.bio || '');
@@ -221,7 +236,7 @@ export default function StandupProfileScreen() {
       name,
       set_length:      setLength ? parseInt(setLength) : null,
       location, state: locState, postcode,
-      tagline, bio,
+      sound, tagline, bio,
       mix_link:        ensureHttps(videoLink),
       video_link:      ensureHttps(videoLink),
       genre_string,
@@ -346,6 +361,15 @@ export default function StandupProfileScreen() {
               </div>
             </Section>
 
+            {/* YOUR SOUND & STYLE — canonical, see lib/profileBlurbFields.js */}
+            <Section title={BLURB_SECTION_TITLE}>
+              <BlurbFields
+                s={s} type="standup"
+                sound={sound} onSoundChange={setSound}
+                tagline={tagline} onTaglineChange={setTagline}
+              />
+            </Section>
+
             {/* PERFORMANCE STYLE */}
             <Section title="PERFORMANCE STYLE">
               <p className={s.sectionHint}>Select up to 5 tags that best describe your performance style. These help organisers quickly understand what audiences can expect.</p>
@@ -386,18 +410,18 @@ export default function StandupProfileScreen() {
               </Section>
             )}
 
-            {/* YOUR STYLE */}
-            <Section title="YOUR STYLE">
-              <Field label="TAGLINE">
-                <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="One line that captures your act" maxLength={120} autoComplete="off" />
-              </Field>
-            </Section>
-
-            {/* VIDEO LINK */}
-            <Section title="VIDEO / SHOWREEL">
-              <Field label="LINK TO YOUR BEST SET OR SHOWREEL">
-                <input className={s.input} value={videoLink} onChange={e => setVideoLink(e.target.value)} placeholder="YouTube, Vimeo, or social link" autoCapitalize="none" />
-              </Field>
+            {/* ⚠⚠ WAS "VIDEO / SHOWREEL" ASKING FOR YOUTUBE OR VIMEO — neither of
+                which the player has ever been able to open. It wrote the same
+                `mix_link` the play button reads, so a comic's showreel bounced the
+                promoter out to a new tab. Comedy and poetry get the same audio demo
+                as every other performer. ⛔ `video_link` is still written exactly as
+                before, and no stored link was touched. */}
+            <Section title={demoMixFieldFor('standup').title}>
+              <DemoMixField
+                s={s} type="standup"
+                value={videoLink} onChange={e => setVideoLink(e.target.value)}
+                naFields={naFields} onToggleNa={toggleNa}
+              />
             </Section>
 
             <button type="button" className={s.moreBtn} style={{ background: GRAD, color: '#fff' }} onClick={() => setPage(2)}>

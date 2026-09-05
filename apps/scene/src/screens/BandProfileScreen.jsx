@@ -13,6 +13,10 @@ import SocialSection from '../components/SocialSection';
 import ClaimSuggestion from '../components/ClaimSuggestion';
 import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES, BAND_ROLES, VISIBLE_BAND_ROLES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { BLURB_SECTION_TITLE } from '../lib/profileBlurbFields';
+import BlurbFields from '../components/BlurbFields';
+import DemoMixField from '../components/DemoMixField';
+import { demoMixFieldFor } from '../lib/demoMixField';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 
@@ -109,6 +113,16 @@ export default function BandProfileScreen() {
   const [location,    setLocation]    = useState('');
   const [locState,    setLocState]    = useState('');
   const [postcode,    setPostcode]    = useState('');
+  /* ⛔⛔ `sound` WAS MISSING ENTIRELY UNTIL 2026-09, AND THAT WAS A REAL BUG,
+     not a missing nicety. The editor showed one box under a heading reading
+     YOUR SOUND, and that box wrote `tagline` — a column read by exactly two
+     surfaces. Meanwhile `sound` is what portrait cards, application cards,
+     enquiry cards, the invite sheet, the fill-slot modal and `lineup_members`
+     all read, so every band fell through to
+     `genreLabels(genre_string).slice(0,3)` on every surface a promoter uses to
+     decide a booking. ⛔ No data was migrated to fix it: existing taglines stay
+     taglines, and `sound` starts empty until the band writes one. */
+  const [sound,       setSound]       = useState('');
   const [tagline,     setTagline]     = useState('');
   const [epkLink,     setEpkLink]     = useState('');
   const [selGenres,   setSelGenres]   = useState([]);
@@ -161,6 +175,7 @@ export default function BandProfileScreen() {
           setLocation(data.location || '');
           setLocState(data.state || '');
           setPostcode(data.postcode || '');
+          setSound(data.sound || '');
           setTagline(data.tagline || '');
           setEpkLink(data.mix_link || data.epk_link || '');
           setBio(data.bio || '');
@@ -239,7 +254,7 @@ export default function BandProfileScreen() {
       member_count: members ? parseInt(members) : null,
       established_year: established ? parseInt(established) : null,
       location, state: locState, postcode,
-      tagline, bio,
+      sound, tagline, bio,
       mix_link: ensureHttps(epkLink), epk_link: ensureHttps(epkLink),
       genre_string, card_pills, avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
@@ -372,11 +387,21 @@ export default function BandProfileScreen() {
               </div>
             </Section>
 
-            {/* YOUR SOUND */}
-            <Section title="YOUR SOUND">
-              <Field label={<>TAGLINE <span style={{ fontSize:10, fontWeight:400, opacity:.55, letterSpacing:.3 }}>One line that captures your sound</span></>}>
-                <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="e.g. Psychedelic desert blues from the Blue Mountains" maxLength={120} />
-              </Field>
+            {/* YOUR SOUND & STYLE — canonical, see lib/profileBlurbFields.js */}
+            <Section title={BLURB_SECTION_TITLE}>
+              <BlurbFields
+                s={s} type="band"
+                sound={sound} onSoundChange={setSound}
+                tagline={tagline} onTaglineChange={setTagline}
+              />
+            </Section>
+
+            {/* ⚠ UNTITLED ON PURPOSE (owner, 2026-09). This block used to be headed
+                YOUR SOUND because it carried the tagline; that moved to the canonical
+                section above and the heading went with it. ⛔ Do not give it one back:
+                the GENRE / SUBGENRE / VIBE subLabels inside already say what each
+                group is, and an outer heading only repeats the first of them. */}
+            <Section>
               <div className={s.subLabel} style={{ ...EXPERIMENTAL_HEADING_STYLE, borderImage: `linear-gradient(90deg, ${COL}, ${COL2}) 1` }}>GENRE</div>
               <div className={s.chips}>
                 {BAND_GENRES.map(g => (
@@ -433,11 +458,17 @@ export default function BandProfileScreen() {
               );
             })()}
 
-            {/* EPK / PROMO LINK */}
-            <Section title="EPK / PROMO LINK">
-              <Field label="LINK TO MUSIC OR PRESS KIT">
-                <input className={s.input} value={epkLink} onChange={e => setEpkLink(e.target.value)} placeholder="Spotify, Bandcamp, Soundcloud, or EPK URL" autoCapitalize="none" />
-              </Field>
+            {/* ⚠ WAS "EPK / PROMO LINK", AND THAT NAME WAS THE PROBLEM. It invited
+                Spotify, Bandcamp and press kits, none of which the player can open,
+                while writing the same `mix_link` the play button reads. A band's
+                demo is a mixtape; it is now asked for as one. ⛔ The `epk_link`
+                column is still written exactly as before — see lib/demoMixField.js. */}
+            <Section title={demoMixFieldFor('band').title}>
+              <DemoMixField
+                s={s} type="band"
+                value={epkLink} onChange={e => setEpkLink(e.target.value)}
+                naFields={naFields} onToggleNa={toggleNa}
+              />
             </Section>
 
             <button type="button" className={s.moreBtn} style={{ background: GRAD, color: '#fff' }} onClick={() => setPage(2)}>

@@ -13,6 +13,8 @@ import SocialSection from '../components/SocialSection';
 import ClaimSuggestion from '../components/ClaimSuggestion';
 import { HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { BLURB_SECTION_TITLE } from '../lib/profileBlurbFields';
+import BlurbFields from '../components/BlurbFields';
 import { normalizeSocialValue } from '../lib/socialLinks';
 
 
@@ -316,14 +318,13 @@ export default function HostProfileScreen() {
           </div>
         </Section>
 
-        {/* TAGLINE + SOUND */}
-        <Section>
-          <Field label={<>TAGLINE <span className={s.fieldHint}>(one punchy line)</span></>}>
-            <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="e.g. Sydney's most underground rave collective" maxLength={120} autoComplete="off" />
-          </Field>
-          <Field label={<>SOUND / VIBE BIO <span className={s.fieldHint}>35 chars</span></>}>
-            <input className={s.input} value={sound} onChange={e => setSound(e.target.value)} placeholder="e.g. Deep, dark and uncompromising" maxLength={35} autoComplete="off" />
-          </Field>
+        {/* YOUR SOUND & STYLE — canonical, see lib/profileBlurbFields.js */}
+        <Section title={BLURB_SECTION_TITLE}>
+          <BlurbFields
+            s={s} type="host"
+            sound={sound} onSoundChange={setSound}
+            tagline={tagline} onTaglineChange={setTagline}
+          />
         </Section>
 
         {/* ABOUT YOUR EVENTS */}

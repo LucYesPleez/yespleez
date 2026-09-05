@@ -8,6 +8,8 @@ import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
 import { normalizeSocialValue } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { BLURB_SECTION_TITLE } from '../lib/profileBlurbFields';
+import BlurbFields from '../components/BlurbFields';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import ClaimSuggestion from '../components/ClaimSuggestion';
 import RequirementChecklist, { toggleRequirement } from '@yespleez/requirements/checklist';
@@ -330,17 +332,17 @@ export default function VenueProfileScreen() {
 
         {/* Vibe + Tagline */}
         <div className={s.section}>
-          <div className={s.sectionTitle} style={SECTION_TITLE_STYLE}><GH>LISTING INFO</GH></div>
-          <div className={s.field}>
-            <label className={s.fieldLabel}>YOUR VIBE <span className={s.fieldHint}>shows on your listing · 50 chars</span></label>
-            <input className={s.input} value={sound} onChange={e => setSound(e.target.value.slice(0,50))} placeholder="e.g. Underground warehouse techno venue" maxLength={50} />
-            <div className={s.charCount}>{sound.length} / 50</div>
-          </div>
-          <div className={s.field}>
-            <label className={s.fieldLabel}>TAGLINE <span className={s.fieldHint}>100 chars</span></label>
-            <textarea className={s.textarea} rows={2} value={tagline} onChange={e => setTagline(e.target.value.slice(0,100))} placeholder="Sydney's most iconic live music room. Three floors, two stages, one vibe." maxLength={100} style={{ minHeight: 56 }} />
-            <div className={s.charCount}>{tagline.length} / 100</div>
-          </div>
+          <div className={s.sectionTitle} style={SECTION_TITLE_STYLE}><GH>{BLURB_SECTION_TITLE}</GH></div>
+          {/* ⚠ THE `.slice()` CLAMPS ARE GONE ON PURPOSE. They duplicated
+              `maxLength`, which already stops the keystroke, and duplicated it at
+              a DIFFERENT number than every other editor used, which is exactly the
+              drift this section was canonicalised to end. `maxLength` alone now,
+              from the registry, everywhere. */}
+          <BlurbFields
+            s={s} type="venue"
+            sound={sound} onSoundChange={setSound}
+            tagline={tagline} onTaglineChange={setTagline}
+          />
         </div>
 
         {/* Location */}

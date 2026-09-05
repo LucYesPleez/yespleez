@@ -223,3 +223,31 @@
   transition: opacity .15s;
 }
 .saveBtnBottom:disabled { opacity: .6; }
+
+/* ── YOUR SOUND & STYLE (canonical blurb fields) ──────────────────────────
+   ⚠ Mirrors ArtistProfileScreen.module.css rather than inventing a look:
+   BlurbFields is one component rendered into three different CSS modules, and
+   it needs `fieldHint`, `charCount` and `sectionTitle` to exist in each. */
+.sectionTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  color: var(--neon2);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+  margin-top: 22px;
+}
+.fieldHint {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.charCount {
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
