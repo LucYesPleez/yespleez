@@ -192,7 +192,11 @@ function peekScopeLabel(day) {
  *   (the harness, the host editor's DaySlots path) simply never grow the
  *   control — same rule as every handler-gated control on SlotCard.
  */
-export default function SchedulePortrait({ resolved, allMixSlots = [], calendar = null }) {
+/* ⚠ `namesAnnounced` IS THE HOST'S "I AM READY TO POST THIS" OVERRIDE, read
+   from the event by the screen and passed down — ⛔ never worked out here.
+   `lib/eventSetTimes` owns the question; this component only carries the answer
+   to the cards and to the map, so the two cannot disagree about who is named. */
+export default function SchedulePortrait({ resolved, allMixSlots = [], calendar = null, namesAnnounced = false }) {
   const shape = scheduleShape(resolved);
   /* ⭐ ONE MAP FOR THE WHOLE SCHEDULE — which confirmed, clock-placeable sets
      may offer ADD TO CALENDAR. Computed here so the cards only look up; the
@@ -575,6 +579,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
         <ScheduleMap
           day={peekDays[0]}
           now={now}
+          namesAnnounced={namesAnnounced}
           onPick={id => { setFocusSlot(id); setOpen(true); }}
         />
       )}
@@ -649,7 +654,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
               single-stage event is simply a pager with one page — same cards,
               same drag, same live states — so there is no second layout that
               can drift away from this one. */}
-          <StagePager day={day} allMixSlots={allMixSlots} now={now} sync={stageSync} calBySlot={calBySlot} />
+          <StagePager day={day} allMixSlots={allMixSlots} now={now} sync={stageSync} calBySlot={calBySlot} namesAnnounced={namesAnnounced} />
         </div>
       ))}
       </div>
@@ -667,7 +672,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [], calendar 
     already 1,000 lines deciding what a punter may see. Where the night is up
     to is not its question — a wrapper can swell and mute the finished card
     without a third state entering the one component both paths share. */
-function Card({ entry, allMixSlots, state, live, neighbour = false, calBySlot = null }) {
+function Card({ entry, allMixSlots, state, live, neighbour = false, calBySlot = null, namesAnnounced = false }) {
   /**
    * ⭐⭐ THE HANDOVER BETWEEN STATES IS ANIMATED (owner, 2026-08-21): a set
    * FADES ON as it starts, and as it finishes it fades out completely and
@@ -706,6 +711,10 @@ function Card({ entry, allMixSlots, state, live, neighbour = false, calBySlot = 
         slot={entry.slot}
         claim={entry.claim}
         isHost={false}
+        /* ⛔ STILL NOT THE HOST. This says only that the running order has been
+           announced, so the names may show; every host CONTROL stays absent
+           because none of their handlers are passed. */
+        namesAnnounced={namesAnnounced}
         allMixSlots={allMixSlots}
         /* ⭐ HANDLER-GATED like every SlotCard control: only a confirmed set
            the lib could place on a clock gets an entry in `calBySlot`, so an
@@ -863,7 +872,11 @@ function SetStrip({ live, claim }) {
  * ⭐ Stage chips ride above, under the day chips' own law: lit by the
  * sideways SCROLL (not the click), tap to jump, ⛔ never a filter.
  */
-function StagePager({ day, allMixSlots, now, sync, calBySlot = null }) {
+/* ⚠ CARRIES `namesAnnounced` STRAIGHT THROUGH. It decides nothing about it —
+   the pager only exists to swipe between stages, and the moment a component in
+   the middle of a chain starts interpreting a flag is the moment two surfaces
+   answer one question differently. */
+function StagePager({ day, allMixSlots, now, sync, calBySlot = null, namesAnnounced = false }) {
   /* ⚠ ONE MAP FOR THE WHOLE DAY, so every stage answers from the same instant.
      Computed here rather than per cell: `playStates` walks the shared axis to
      work out the midnight rollover, and calling it per card would redo that
@@ -1202,6 +1215,7 @@ function StagePager({ day, allMixSlots, now, sync, calBySlot = null }) {
                   neighbour={isNeighbour(i, sIdx)}
                   live={states.get(cell.entry.slot.id)}
                   calBySlot={calBySlot}
+                  namesAnnounced={namesAnnounced}
                 />
               </div>
             ))}

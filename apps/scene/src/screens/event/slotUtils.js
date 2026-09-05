@@ -73,10 +73,23 @@ export function stripEmoji(str) {
  *
  * @returns { isEmpty, name, status } — `name` is '' when `isEmpty`.
  */
-export function slotOccupant(claim, isHost = false) {
+/**
+ * ⚠⚠ `announced` IS THE HOST'S OVERRIDE, and it is the THIRD input on purpose.
+ * Before it, an act was named publicly only once its performance was
+ * `confirmed`, which left a host ready to post the running order looking at a
+ * column of PENDING above a LINEUP naming every one of those acts. ⭐ The
+ * override changes WHO IS NAMED and nothing else: `status` is returned
+ * untouched, so the host's own SET TIMES chip still reads AWAITING REPLY and
+ * `performances` still records the truth about who has agreed.
+ *
+ * ⛔⛔ A `draft` SLOT IS STILL HIDDEN FROM THE PUBLIC, announced or not — the
+ * `isEmpty` test above runs first and deliberately does not consult it. A slot
+ * whose time was never sent is not part of the running order being announced.
+ */
+export function slotOccupant(claim, isHost = false, announced = false) {
   const status = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
   const isEmpty = !claim || (!isHost && status === 'draft');
   if (isEmpty) return { isEmpty: true, name: '', status };
-  const named = isHost || status === 'confirmed';
+  const named = isHost || announced || status === 'confirmed';
   return { isEmpty: false, name: named ? (claim?.name || '') : 'PENDING', status };
 }

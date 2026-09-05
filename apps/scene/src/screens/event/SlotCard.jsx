@@ -159,7 +159,7 @@ function PersonActions({ claim, viewerProfileId, navigate, msgBusy, setMsgBusy, 
   );
 }
 
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, onNotify, onAddToCalendar, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, onNotify, onAddToCalendar, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode, namesAnnounced = false }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
@@ -270,7 +270,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
    * about: two answers to one question, and a leak on the day they disagree.
    * ⛔ Do not inline them again — this card and the map read the same function.
    */
-  const { isEmpty, name: publicName } = slotOccupant(claim, isHost);
+  const { isEmpty, name: publicName } = slotOccupant(claim, isHost, namesAnnounced);
   const rawDur     = parseDurMins(slot.dur ?? slot.duration);
   const durLabel   = fmtDur(rawDur > 0 ? rawDur : 60);
   const cleanLabel = slot.label ? stripEmoji(slot.label) : null;

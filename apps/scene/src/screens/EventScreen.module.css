@@ -1068,3 +1068,60 @@
 }
 
 .slotFollowBtn:hover { filter: brightness(1.25); }
+
+/* ── DRAFT / LIVE toggle: one control, two slots ───────────────────────────
+   ⭐ MOBILE ONLY (owner, 2026-09-05). On a phone the toggle sat jammed against
+   the stats row, so it drops down beside HOST DASH and lets the numbers
+   breathe. ⛔ DESKTOP IS DELIBERATELY UNCHANGED — above 640px it stays in the
+   right-hand host control stack exactly as before.
+
+   ⚠⚠ ONLY ONE SLOT IS EVER VISIBLE, and `display` is the ONLY property that
+   decides it. ⛔ Neither slot may carry an inline `display` in the JSX: an
+   inline style outranks a media query, and the toggle would appear twice on a
+   phone with two live copies of the same control.
+
+   ⚠ 640px is the app's existing mobile breakpoint (8 other uses), ⛔ not a new
+   one invented here. */
+.draftLiveDesktop { display: flex; }
+.draftLiveMobile  { display: none; }
+
+@media (max-width: 640px) {
+  .draftLiveDesktop { display: none; }
+  .draftLiveMobile  { display: flex; }
+}
+
+/* ── The manage panel's two columns ────────────────────────────────────────
+   ⛔ DESKTOP IS BYTE-FOR-BYTE WHAT IT WAS: a two-column flex row, the control
+   stack fixed at 128px and spread top to bottom beside the stats.
+
+   ⭐ ON MOBILE THEY STACK (owner, 2026-09-05). The stats were sharing their row
+   with the control stack, which left "APPLICATIONS SHORTLISTED LINEUP" running
+   into each other and the LINEUP figure clipped mid-word. Given the full width
+   they read as three separate numbers again.
+
+   ⚠⚠ THESE PROPERTIES CANNOT GO BACK INLINE. `display`, `width` and
+   `flex-direction` are exactly what the media query overrides, and an inline
+   style outranks it, so the phone would silently keep the desktop layout. */
+.managePanelCols {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.manageControlStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 128px;
+  justify-content: space-between;
+}
+
+@media (max-width: 640px) {
+  .managePanelCols { flex-direction: column; }
+  /* A row, full width, under the stats rather than beside them. */
+  .manageControlStack {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

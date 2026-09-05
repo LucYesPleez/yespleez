@@ -22,7 +22,7 @@ import { shortlistEntries } from '../../lib/shortlist';
 import { notifyState } from '../../lib/notifyPlan';
 /* ⭐ P6.3 · the sender. The rule lives there; this screen only resolves who and reports what happened. */
 import { sendSlotNotice } from '../../lib/notifySender';
-import { setTimesEnabled } from '../../lib/eventSetTimes';
+import { setTimesEnabled, setTimesAnnounced, withSetTimesAnnounced } from '../../lib/eventSetTimes';
 /* ⚠ `PIPELINE_BUCKETS` is no longer imported here: the bucket test moved into
    `pipelineApplications`, which applies it and the on-bill guard together so
    the two cannot be applied separately. The comment below still names it. */
@@ -78,6 +78,9 @@ export default function EventHostView({
    * preference, which keeps every existing event exactly as it is today.
    */
   const usesSetTimes = setTimesEnabled(event, totalSlots);
+  /* ⭐ THE HOST'S "POST IT" OVERRIDE. ⛔ Display only — see lib/eventSetTimes.
+     It never touches `performances`, so nobody is recorded as having agreed. */
+  const namesAnnounced = setTimesAnnounced(event);
 
   /**
    * ⭐ THE CONFIRMED BILL (P5.1). ⚠ Derived from the RAW member and performance
@@ -799,6 +802,56 @@ export default function EventHostView({
     await supabase.from('events').update({ applications_open: next }).eq('id', id);
   }
 
+  /**
+   * ⭐⭐ THE DRAFT / LIVE TOGGLE, DEFINED ONCE AND PLACED TWICE.
+   *
+   * ⚠⚠ ⛔ DO NOT COPY THE MARKUP for the second position. It carries the
+   * gradient-border trick, two status writes and the go-live confirmation; a
+   * second copy is two answers to "is this event live" and they drift on the
+   * first edit. One value, rendered into two slots that CSS shows one of.
+   *
+   * ⭐ MOBILE ONLY (owner, 2026-09-05): on a phone it sat squeezed against the
+   * stats row, so it drops down beside HOST DASH and lets the numbers breathe.
+   * ⛔ DESKTOP IS UNTOUCHED — there it stays in the right-hand control stack
+   * with the other host controls.
+   */
+  const draftLiveToggle = (
+    <>
+              <div style={{
+                display: 'flex', borderRadius: 8, padding: 3, gap: 2,
+                border: '1px solid transparent',
+                background: event.status === 'live'
+                  ? 'linear-gradient(#0f0f1a,#0f0f1a) padding-box, linear-gradient(135deg,#00E5A0,#00E5FF) border-box'
+                  : 'linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)) padding-box, linear-gradient(rgba(255,255,255,.1),rgba(255,255,255,.1)) border-box',
+              }}>
+                <button
+                  onClick={async () => {
+                    if (event.status === 'draft') return;
+                    await supabase.from('events').update({ status: 'draft' }).eq('id', id);
+                    queryClient.invalidateQueries({ queryKey: ['event', id] });
+                  }}
+                  style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, padding: '5px 12px', borderRadius: 6, border: 'none', cursor: event.status === 'draft' ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background .15s, color .15s',
+                    background: event.status === 'draft' ? 'rgba(255,255,255,.12)' : 'none',
+                    color: event.status === 'draft' ? '#fff' : 'rgba(255,255,255,.4)',
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  DRAFT
+                </button>
+                <button
+                  onClick={() => { if (event.status === 'live') return; setGoLiveConfirm(true); }}
+                  style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, padding: '5px 12px', borderRadius: 6, border: 'none', cursor: event.status === 'live' ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background .15s, color .15s',
+                    background: event.status === 'live' ? '#00E5A0' : 'none',
+                    color: event.status === 'live' ? '#0a0a14' : 'rgba(255,255,255,.4)',
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2a10 10 0 0 1 0 20A10 10 0 0 1 12 2" opacity=".25"/></svg>
+                  LIVE
+                </button>
+              </div>
+    </>
+  );
+
   const hostChrome = (
     <>
       {/* Punter preview banner */}
@@ -828,7 +881,10 @@ export default function EventHostView({
             * — with `center` it would sit in the middle of whatever height the
             * left column happened to be.
             */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          {/* ⚠ THE COLUMN COUNT IS THE STYLESHEET'S CALL, ⛔ not an inline one.
+              On mobile these stack so the stats get the full width; above 640px
+              it is the same two-column panel it has always been. */}
+          <div className={s.managePanelCols}>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className={s.managePanelStats} style={{ marginBottom: 0 }}>
               <div className={s.manageStat}>
@@ -898,6 +954,12 @@ export default function EventHostView({
                 </svg>
                 HOST DASH
               </button>
+            {/* ⚠ MOBILE SLOT — beside HOST DASH, hidden on desktop. It sits
+                INSIDE the wrapping row so it shares that row's existing wrap
+                rule rather than inventing a second one. */}
+            <div className={s.draftLiveMobile} style={{ flexShrink: 0, alignItems: 'center' }}>
+              {draftLiveToggle}
+            </div>
             <button className={s.manageBtn} style={{ flex: 1 }} onClick={() => navigate(`/create-event?edit=${id}`)}>MANAGE EVENT ›</button>
             </div>
           </div>
@@ -917,43 +979,15 @@ export default function EventHostView({
             * host, so a punter never sees a link to a workspace they cannot
             * open.
             */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, width: 128, justifyContent: 'space-between' }}>
+            <div className={s.manageControlStack}>
             {/* ⚠ MOVED INTO THE RIGHT-HAND STACK (owner, 2026-08-16) so the four
                 host controls share one column and one edge, instead of the toggle
                 floating above the stats while the rest sat beside them. */}
-            <div style={{ display: 'flex', flexShrink: 0, width: 128, justifyContent: 'center' }}>
-              <div style={{
-                display: 'flex', borderRadius: 8, padding: 3, gap: 2,
-                border: '1px solid transparent',
-                background: event.status === 'live'
-                  ? 'linear-gradient(#0f0f1a,#0f0f1a) padding-box, linear-gradient(135deg,#00E5A0,#00E5FF) border-box'
-                  : 'linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)) padding-box, linear-gradient(rgba(255,255,255,.1),rgba(255,255,255,.1)) border-box',
-              }}>
-                <button
-                  onClick={async () => {
-                    if (event.status === 'draft') return;
-                    await supabase.from('events').update({ status: 'draft' }).eq('id', id);
-                    queryClient.invalidateQueries({ queryKey: ['event', id] });
-                  }}
-                  style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, padding: '5px 12px', borderRadius: 6, border: 'none', cursor: event.status === 'draft' ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background .15s, color .15s',
-                    background: event.status === 'draft' ? 'rgba(255,255,255,.12)' : 'none',
-                    color: event.status === 'draft' ? '#fff' : 'rgba(255,255,255,.4)',
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  DRAFT
-                </button>
-                <button
-                  onClick={() => { if (event.status === 'live') return; setGoLiveConfirm(true); }}
-                  style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, padding: '5px 12px', borderRadius: 6, border: 'none', cursor: event.status === 'live' ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background .15s, color .15s',
-                    background: event.status === 'live' ? '#00E5A0' : 'none',
-                    color: event.status === 'live' ? '#0a0a14' : 'rgba(255,255,255,.4)',
-                  }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2a10 10 0 0 1 0 20A10 10 0 0 1 12 2" opacity=".25"/></svg>
-                  LIVE
-                </button>
-              </div>
+            {/* ⚠ DESKTOP SLOT. ⛔ `display` MUST come from the class, ⛔ never an
+                inline style — an inline `display:flex` outranks the media query
+                and the toggle would render in BOTH places at once on a phone. */}
+            <div className={s.draftLiveDesktop} style={{ flexShrink: 0, width: 128, justifyContent: 'center' }}>
+              {draftLiveToggle}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -1178,6 +1212,59 @@ export default function EventHostView({
             {showTimesPublicly ? 'TAP TO HIDE' : 'TAP TO ANNOUNCE'}
           </span>
         </button>
+      )}
+
+      {/**
+        * ── ⭐⭐ ANNOUNCE THE NAMES — the host's override ──────────────────────
+        *
+        * ⛔⛔ IT WRITES NOTHING TO `performances`, AND THAT IS THE WHOLE POINT.
+        * `status: 'accepted'` means THE ARTIST AGREED, and `isBooked` reads it
+        * for a managed contract, so flipping it on somebody's behalf would have
+        * the bill claiming a consent nobody gave. This says only "these names
+        * are announced", and stores that on the EVENT.
+        *
+        * ⚠ THE TWO FACTS STAY SEPARATE: the public running order shows the
+        * name, and the slot's own chip here still reads AWAITING REPLY until
+        * that act answers. ⛔ Neither is a stand-in for the other.
+        *
+        * ⛔ SEPARATE FROM THE TOGGLE ABOVE, AGAIN. That one is "is there a
+        * public running order at all"; this is "may it use their names yet".
+        * ⚠ A `draft` slot stays hidden either way — see `slotOccupant`.
+        */}
+      {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && (
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={async () => {
+              const next = !namesAnnounced;
+              /* ⚠ RLS FILTERS AN UPDATE RATHER THAN ERRORING IT, so the refetch
+                 is what proves this landed, exactly as the publish button below
+                 documents for its own write. */
+              await supabase.from('events')
+                .update({ config: withSetTimesAnnounced(event.config, next) })
+                .eq('id', id);
+              queryClient.invalidateQueries({ queryKey: ['event', id] });
+            }}
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+              border: `1px solid ${namesAnnounced ? 'rgba(0,229,160,.3)' : 'rgba(255,255,255,.1)'}`,
+              background: namesAnnounced ? 'rgba(0,229,160,.12)' : 'rgba(255,255,255,.04)',
+            }}
+          >
+            <span style={{ color: namesAnnounced ? '#00E5A0' : 'rgba(255,255,255,.4)' }}>
+              {namesAnnounced ? '● NAMES ANNOUNCED' : '○ NAMES HIDDEN UNTIL EACH ACT REPLIES'}
+            </span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,.3)', letterSpacing: 1 }}>
+              {namesAnnounced ? 'TAP TO HIDE' : 'TAP TO ANNOUNCE'}
+            </span>
+          </button>
+          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.45)', marginTop: 6, lineHeight: 1.5 }}>
+            {namesAnnounced
+              ? 'The public running order shows every act you have given a time to. Acts who have not replied still show as awaiting reply here, and nobody is marked as having accepted.'
+              : 'The public running order shows a slot as pending until that act replies. Announce when you are ready to post it, even if some acts have not answered yet.'}
+          </div>
+        </div>
       )}
 
       {/**
@@ -2149,7 +2236,7 @@ export default function EventHostView({
 ⚠  — the preview shows the cards, ⛔ not a
              continue-playing rail built from the host's own page. */
           setTimes={showTimesPublicly && totalSlots > 0
-            ? <SchedulePortrait resolved={schedule} allMixSlots={[]} />
+            ? <SchedulePortrait resolved={schedule} allMixSlots={[]} namesAnnounced={namesAnnounced} />
             : null}
         />
         {overlays}

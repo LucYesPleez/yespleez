@@ -79,7 +79,11 @@ function hourLabel(mins) {
   return `${h12}${h < 12 ? 'a' : 'p'}`;
 }
 
-export default function ScheduleMap({ day, now, onPick }) {
+/* ⚠ `namesAnnounced` THREADS THROUGH HERE TOO. This map draws a name of its
+   own, and SlotCard's note already warns that the two surfaces must never
+   answer "who is in this slot" differently. They share `slotOccupant`; they
+   now also share its inputs. */
+export default function ScheduleMap({ day, now, onPick, namesAnnounced = false }) {
   const stages = (day?.stages || []).filter(Boolean);
   const grid = useMemo(() => slotGrid(day, 15), [day]);
   /* ⚠ The SAME state map the cards use, so the map cannot disagree with the
@@ -137,7 +141,7 @@ export default function ScheduleMap({ day, now, onPick }) {
 
         {stages.map((st, sIdx) => grid.stages[sIdx].map(cell => {
           const { slot, claim } = cell.entry;
-          const { isEmpty, name } = slotOccupant(claim);
+          const { isEmpty, name } = slotOccupant(claim, false, namesAnnounced);
           const label = slot.label ? stripEmoji(slot.label) : '';
           /* ⭐ THE SAME THREE READINGS THE CARD HAS: an act, an INFO block
              (a labelled slot with no performer — a welcome, a changeover), or

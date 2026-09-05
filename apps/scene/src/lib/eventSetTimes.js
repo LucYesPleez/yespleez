@@ -55,3 +55,44 @@ export function setTimesAnswered(event) {
 export function withSetTimesEnabled(config, enabled) {
   return { ...(config || {}), set_times_enabled: !!enabled };
 }
+
+/**
+ * ⭐⭐ HAS THE HOST ANNOUNCED THE RUNNING ORDER?
+ *
+ * ⛔⛔ THIS IS A DISPLAY DECISION, ⛔ NOT A BOOKING ONE, AND THAT SEPARATION IS
+ * THE WHOLE POINT. `performances.status = 'accepted'` means THE ARTIST AGREED,
+ * and `isBooked` reads it for a managed contract. Publishing a running order
+ * before everyone has replied must NEVER write that value on their behalf, or
+ * the bill starts claiming consent nobody gave.
+ *
+ * ⚠ So the override lives on the EVENT: the host says "these names are
+ * announced", the artist's own row keeps saying `offered` / awaiting reply, and
+ * the SET TIMES tab keeps showing AWAITING REPLY truthfully. One fact each.
+ *
+ * ── WHY IT WAS NEEDED ───────────────────────────────────────────────────────
+ * `slotOccupant` named an act only once its performance was `confirmed`, so a
+ * host ready to post the running order watched their public schedule read
+ * PENDING down the page while the LINEUP directly beneath it named every one of
+ * those same acts. The concealment protected nothing — the names were already
+ * public a few hundred pixels lower — and it read as a broken page rather than
+ * as "the time is not agreed yet" (owner, 2026-09-05).
+ *
+ * ⛔ A `draft` SLOT IS STILL HIDDEN. Announcing is about acts the host has
+ * already offered a time to; a slot never sent is not part of the running
+ * order, and `slotOccupant` keeps treating it as empty.
+ *
+ * ⚠ ABSENT MEANS "BEHAVE EXACTLY AS TODAY", the same fail-safe direction as
+ * `setTimesEnabled` above. ⛔ No backfill.
+ */
+export function setTimesAnnounced(event) {
+  return event?.config?.set_times_announced === true;
+}
+
+/**
+ * ⭐ The config patch, so callers never hand-write the key.
+ * ⛔ MERGE, ⛔ never replace — `config` also carries days, poster, venue,
+ * `set_times_enabled` and `set_times_locked`.
+ */
+export function withSetTimesAnnounced(config, announced) {
+  return { ...(config || {}), set_times_announced: !!announced };
+}
