@@ -233,3 +233,62 @@ test('⭐ every displayable notification type has a decision recorded', () => {
   assert.deepEqual(undecided, [],
     `these types are neither routed nor recorded as inert:\n  ${undecided.join('\n  ')}`);
 });
+
+/**
+ * ⭐⭐ AN AVAILABILITY ENQUIRY MUST OPEN (owner, 2026-09-01: notifications
+ * should take you to that spot in the app).
+ *
+ * ⛔⛔ EVERY ONE OF THESE WAS INERT. `availability_request` sat in EVENT_TYPES
+ * only, and a direct date enquiry names no event, so it fell through to the
+ * null return. Three of them were sitting unclickable in the owner's bell.
+ */
+test('an availability enquiry opens the RECIPIENT\'s enquiries, incoming', () => {
+  assert.equal(
+    notifDestination({
+      type: 'availability_request',
+      data: { enquiry_id: 65, recipient_type: 'venue' },
+    }),
+    '/industry/venue?section=enquiries&tab=INCOMING');
+});
+
+/**
+ * ⛔ ENQUIRING IS UNIVERSAL — an act receives these too, so the destination
+ * must follow the recipient's type and never be hard-coded to a venue.
+ */
+test('the same notice sends an ACT to the act dashboard', () => {
+  assert.equal(
+    notifDestination({
+      type: 'availability_request',
+      data: { enquiry_id: 66, recipient_type: 'artist' },
+    }),
+    '/industry/artist?section=enquiries&tab=INCOMING');
+});
+
+/**
+ * ⛔⛔ THE READER RECEIVED THIS ASK — it is not an answer coming back. Reading
+ * `applicant_type` would send the venue to the ENQUIRER's dashboard.
+ */
+test('it never routes by the applicant\'s type', () => {
+  assert.equal(
+    notifDestination({
+      type: 'availability_request',
+      data: { enquiry_id: 67, applicant_type: 'host', recipient_type: 'venue' },
+    }),
+    '/industry/venue?section=enquiries&tab=INCOMING');
+});
+
+/* ⚠ Rows written before `recipient_type` existed stay inert rather than
+   guessing a dashboard — absent is not the same as wrong. */
+test('a legacy row with no recipient type stays inert', () => {
+  assert.equal(notifDestination({ type: 'availability_request', data: { enquiry_id: 58 } }), null);
+});
+
+/* ⚠ An event still wins when the enquiry names one — the more specific place. */
+test('an availability enquiry that names an event opens the event', () => {
+  assert.equal(
+    notifDestination({
+      type: 'availability_request',
+      data: { enquiry_id: 68, recipient_type: 'venue', event_id: '11111111-2222-3333-4444-555555555555' },
+    }),
+    '/event/11111111-2222-3333-4444-555555555555');
+});

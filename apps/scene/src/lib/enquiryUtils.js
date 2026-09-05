@@ -59,6 +59,22 @@ const OUTGOING_STATUS_MAP = {
   booked:      'accepted',
   declined:    'declined',
   rejected:    'declined',
+  /**
+   * ⛔⛔ WITHOUT THIS A CANCELLED ASK COMES BACK AS `awaiting`.
+   *
+   * ⚠⚠ The incoming map got this line on 2026-08-14; the outgoing one did not,
+   * and the gap only surfaced when a VENUE cancelled an offer it had sent
+   * (2026-09-01). The applicant side never showed it because cancelling also
+   * sets `applicant_cleared_at`, which removes the row from the query — so the
+   * fallback was never reached. The venue side set no cleared column, so its
+   * withdrawn offer reappeared at the top of its own AWAITING tab as though
+   * nothing had happened. That is precisely what "cancel does nothing" was.
+   *
+   * ⛔ `declined` because that is the "off the table" pile, ⛔ NOT because
+   * anyone declined it — the same reading the incoming map takes. Belt and
+   * braces: the canceller's own list clears the row anyway.
+   */
+  cancelled:   'declined',
 };
 
 // `direction` is viewer-relative and is deliberately NOT stored: the same row is

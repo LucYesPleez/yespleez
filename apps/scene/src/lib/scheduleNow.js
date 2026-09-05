@@ -333,9 +333,46 @@ export function focusDayIndex(days = [], todayStr = '') {
   const upcoming = list.find(d => d.date && d.date > todayStr);
   if (upcoming) return upcoming.dayIndex;
 
-  /* ⚠ Every day is in the past — or none of them carries a date at all, which
-     is a real state on an event whose dates were never set. The last day is the
-     honest answer to the first case; for the second, `list[0]` would be as
-     arbitrary as anything, so the LAST stays consistent with it. */
+  /**
+   * ⭐⭐ ONCE IT IS OVER, OPEN ON THE OPENING NIGHT (owner, 2026-09-01: "theyd
+   * be even better if they showed friday").
+   *
+   * ⚠⚠ THIS REPLACED "THE BUSIEST NIGHT", WHICH I ARGUED FOR AND WAS WRONG
+   * ABOUT. By count Saturday is genuinely bigger — nine acts on the live stage
+   * to Friday's six — so the rule was picking correctly and still gave the
+   * worse page. A finished festival is being READ, not navigated: it opens on
+   * the night it opened on, with the Welcome to Country and the acts whose
+   * profiles carry artwork. Volume was the measurable thing, ⛔ not the right
+   * one.
+   *
+   * ⛔ NOT `list[0]` EITHER — see the guard below. The first day of a programme
+   * is not always the first day with anything on it.
+   *
+   * ⛔⛔ IT USED TO BE THE LAST DAY, and on a real programme that is the
+   * wind-down. Neverland Weekender runs two stages on Friday and Saturday and
+   * three workshops on Sunday, so a finished festival opened on the quietest
+   * day it has — and with the LIVE stage selected, on nothing at all. The
+   * reasoning for `last` ("the most recent thing that happened") is true of a
+   * festival still in living memory and wrong as an answer to "what was this?".
+   *
+   * ⚠ ONLY WHEN EVERY DAY IS PAST. A festival running now still opens on
+   * TODAY, and one still to come on its FIRST day — those are questions about
+   * where you are, and busyness must not outrank them.
+   *
+   * ⚠ FALLS BACK TO LAST when no day carries slots. Callers that pass bare
+   * `{ dayIndex, date }` days — and there are some — keep exactly the old
+   * behaviour, which is why the original rule is preserved below rather than
+   * replaced.
+   */
+  /* ⛔ THE FIRST DAY WITH A PROGRAMME, ⛔ not simply the first day. A festival
+     can carry a build day, or a day whose slots were never filled in, and
+     opening on an empty one is the blank this whole rule exists to avoid. */
+  const opening = list.find(d =>
+    (d.stages || []).some(st => (st?.slots || []).length));
+  if (opening) return opening.dayIndex;
+
+  /* ⚠ No slot data at all — or every day empty. The last day is the honest
+     answer for a finished event; for an event whose dates were never set,
+     `list[0]` would be as arbitrary as anything, so LAST stays consistent. */
   return list[list.length - 1].dayIndex;
 }
