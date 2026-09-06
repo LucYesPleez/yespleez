@@ -71,7 +71,27 @@ export default function EventHostView({
 
   const [showManage,    setShowManage]    = useState(false);
   const [appCounts,     setAppCounts]     = useState({ total: 0, shortlisted: 0 });
-  const [appsOpen,      setAppsOpen]      = useState(null);
+  /**
+   * ⛔⛔ DERIVED FROM THE EVENT, ⛔ NEVER LOCAL STATE. This was
+   * `useState(null)`, seeded from nothing, and written only by the toggle
+   * itself — so it was `null` on every single mount. Three wrong answers came
+   * out of that one line:
+   *
+   *   1. The menu read `appsOpen ? 'Close' : 'Open'`, so an event with
+   *      applications ALREADY OPEN offered "Open Applications" and an unlock
+   *      icon. The control described the opposite of the truth.
+   *   2. `!null === true`, so the FIRST tap always wrote `true`. A host with a
+   *      full lineup pressed what they read as "close" and it OPENED them.
+   *      There was no way to close applications from this screen at all.
+   *   3. The optimistic `setAppsOpen(next)` then held that claim forever,
+   *      because nothing refetched.
+   *
+   * ⭐ A state that can be read off the row must be read off the row — the
+   * database is the only copy that cannot go stale. Same rule the rest of this
+   * screen follows.
+   */
+  const appsOpen = event?.applications_open === true;
+  const [appsBusy,      setAppsBusy]      = useState(false);
   /**
    * ⭐ DOES THIS EVENT HAVE A RUNNING ORDER? One reader, `lib/eventSetTimes`.
    * ⚠ `totalSlots` is only consulted for an event that has never stated a
@@ -796,10 +816,35 @@ export default function EventHostView({
     setAssigningMember(null);
   }
 
+  /**
+   * ⛔⛔ `.select()` IS THE VERIFICATION, NOT A CONVENIENCE. RLS FILTERS AN
+   * UPDATE RATHER THAN ERRORING IT — a policy that forbids this write returns
+   * `error: null` and touches nothing. This function trusted that silence, and
+   * `applications_open` is the master switch on whether acts may still apply,
+   * so a blocked write left the host believing a night was closed while
+   * applications kept arriving. Same hole `applyPublishSetTimes` documents.
+   *
+   * ⚠ COUNT THE ROW BACK. `error: null` with zero rows is the failure; only a
+   * returned id proves the database moved.
+   */
   async function toggleAppsOpen() {
+    if (appsBusy) return;
+    setAppsBusy(true);
+    setLineupError('');
     const next = !appsOpen;
-    setAppsOpen(next);
-    await supabase.from('events').update({ applications_open: next }).eq('id', id);
+    const { data, error } = await supabase.from('events')
+      .update({ applications_open: next })
+      .eq('id', id)
+      .select('id');
+    setAppsBusy(false);
+
+    if (error || !(data || []).length) {
+      setLineupError(error?.message || 'Applications are unchanged.');
+      return;
+    }
+    /* ⭐ The refetch IS the state update. Nothing is set optimistically here,
+       so the menu cannot claim a state the row does not hold. */
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
   /**
@@ -1178,7 +1223,11 @@ export default function EventHostView({
       {effectiveIsHost && lineupError && (
         <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
           <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>
-            That change to the lineup did not go through. Nothing was changed. {lineupError}
+            {/* ⚠ WORDING GENERALISED from "That change to the lineup". This
+                banner now also carries a refused APPLICATIONS toggle, and the
+                note above says these should be one shape of bad news rather
+                than two a host has to learn. */}
+            That change did not go through. Nothing was changed. {lineupError}
           </span>
           <button onClick={() => setLineupError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
         </div>
