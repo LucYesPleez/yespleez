@@ -1,6 +1,8 @@
 import { eventCoords, withinRadius } from './geo';
 import { eventCardImage } from './eventImage';
 import { effectiveDate } from './eventBuckets';
+/* localDateStr, not a slice: created_at is an instant, the day keys are local. */
+import { localDateStr } from './dates';
 
 /**
  * FEATURED EVENT — an exposure allocator, not a popularity leaderboard.
@@ -829,7 +831,22 @@ export function replayHistory({ events = [], fromIso, toIso, ...rest } = {}) {
   const span = daysBetween(fromIso, toIso);
   for (let i = 0; i <= span; i++) {
     const day = addDays(fromIso, i);
-    const existing = events.filter(ev => !ev.created_at || ev.created_at.slice(0, 10) <= day);
+    /**
+     * ⛔⛔ `created_at` IS AN INSTANT, `day` IS A LOCAL CALENDAR DATE, and
+     * slicing the first to compare with the second mixes two systems.
+     *
+     * ⚠ `day` comes from `addDays(fromIso, i)` — a local YYYY-MM-DD. Slicing a
+     * `timestamptz` gives the UTC day, so an event created on an Australian
+     * morning was treated as having existed the day BEFORE it did, and a
+     * replayed history could hand the hero slot to an event that did not yet
+     * exist.
+     *
+     * ⚠⚠ ⛔ This is NOT the same as slicing `config.date`, which the What's On
+     * path does deliberately and correctly: that column is already a bare
+     * calendar date. The rule is about the INPUT, not the operation.
+     */
+    const existing = events.filter(ev =>
+      !ev.created_at || localDateStr(new Date(ev.created_at)) <= day);
     const pick = selectFeaturedEvent({ ...rest, events: existing, todayIso: day, history });
     if (pick.event) history.push({ eventId: pick.event.id, date: day });
   }

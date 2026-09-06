@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { PUBLIC_PROFILE_SELECT } from './publicProfileColumns';
+/* ⚠ actingProfile imports only ./supabase, so this direction cannot cycle. */
+import { PERFORMER_TYPES } from './actingProfile';
 
 // M5 — the shared profile-resolution module. One platform-wide way to build
 // profile URLs and resolve /profile/:id route params.
@@ -23,7 +25,20 @@ export function profileUrl(profile) {
 export async function resolveProfileRoute(routeId, { typeFilter, preferPerformer } = {}) {
   const applyTypeFilter = (query) => {
     if (typeFilter) return query.eq('type', typeFilter);
-    if (preferPerformer) return query.neq('type', 'punter').not('type', 'in', '("host","venue")');
+    /**
+     * ⛔⛔ A POSITIVE LIST, ⛔ NEVER "not host, not venue". The negative form
+     * was already out of date: `PLATFORM_TYPES.festival` exists in
+     * lib/profileTypes.js and this filter silently admitted it as a performer,
+     * so a legacy `/profile/:userId?prefer=performer` link on an account that
+     * owns both a festival and an act could resolve to the festival and render
+     * it as the act.
+     *
+     * ⚠ `lib/venueEventsFeed` argues this exact point at length — "'not punter'
+     * is a rule about the ONE type that must never be published, and it
+     * silently accepts the other five" — and the reasoning was never carried
+     * here. A new profile type must have to ASK to be a performer.
+     */
+    if (preferPerformer) return query.in('type', PERFORMER_TYPES);
     return query.neq('type', 'punter');
   };
 

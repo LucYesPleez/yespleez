@@ -411,3 +411,26 @@ test('the label is trimmed, and a blank one is stored as empty', async () => {
   assert.equal(inserted.label, 'Doors');
   assert.equal(inserted.position, 2, 'relative to THIS stage\'s lowest position, not zero');
 });
+
+test('⛔⛔ a single-stage day carries NO stage name, ⛔ not a slot index', () => {
+  /**
+   * ⚠⚠ THE ARITY TRAP. The single-stage path read
+   * `d.slots.sort(byPosition).map(toRenderSlot)`, and `.map` passes
+   * `(element, index, array)` — so `toRenderSlot`'s SECOND parameter,
+   * `stageName`, received the slot's INDEX.
+   *
+   * Slot 0 got `0`, which is falsy and collapsed to null, so the first slot of
+   * every day looked correct. Every slot after it claimed to be on a stage
+   * called "1", "2", "3" — a name no stage has, on an event that has no stages.
+   */
+  const [day] = groupSlotsIntoDays([
+    { id: 'a', day_index: 0, position: 0, time: '8:00',  ampm: 'PM' },
+    { id: 'b', day_index: 0, position: 1, time: '9:00',  ampm: 'PM' },
+    { id: 'c', day_index: 0, position: 2, time: '10:00', ampm: 'PM' },
+  ]);
+  assert.equal(day.slots.length, 3);
+  for (const slot of day.slots) {
+    assert.equal(slot.stageName, null,
+      'an event with no stages has no stage name to give — on EVERY slot, not just the first');
+  }
+});

@@ -98,7 +98,7 @@ export function groupSlotsIntoDays(rows = [], dates = [], stages = []) {
      the host's set-times grid, the dashboard and the public day list. */
   const ordered = (stages || []).slice().sort(byPosition);
   if (ordered.length < 2) {
-    return days.map(d => ({ ...d, slots: d.slots.sort(byPosition).map(toRenderSlot) }));
+    return days.map(d => ({ ...d, slots: d.slots.sort(byPosition).map(r => toRenderSlot(r)) }));
   }
 
   /**

@@ -496,6 +496,37 @@ test('⚠ replay honours created_at — an event cannot be featured before it ex
     'the newer event must be absent from days before it was created');
 });
 
+test('⛔⛔ replay reads created_at as a LOCAL day, ⛔ never a UTC slice', () => {
+  /**
+   * `created_at` is a `timestamptz` — an INSTANT — and the replay's day keys
+   * come from `addDays(fromIso, i)`, which are LOCAL calendar dates. The filter
+   * sliced the first ten characters off the instant, which is its UTC day.
+   *
+   * ⚠ East of Greenwich the two disagree every morning: an event created at
+   * 00:30 in Sydney reads as the PREVIOUS day in UTC, so replay believed it had
+   * existed a day earlier than it did and could hand it the hero slot before it
+   * was created — the same class of bug as `feedback_toisostring_is_not_today`.
+   */
+  const born = day(-2);
+  const offsetMin = -new Date(`${born}T12:00:00`).getTimezoneOffset();
+  // ⚠ In UTC itself the two readings CANNOT disagree, so there is nothing to
+  // prove. That is the bug's whole nature, not a gap in the test.
+  if (offsetMin === 0) return;
+  // An instant that lands on `born` locally but on a different date in UTC.
+  const instant = new Date(`${born}T${offsetMin > 0 ? '00:30:00' : '23:30:00'}`);
+  assert.notEqual(instant.toISOString().slice(0, 10), born,
+    'the fixture must actually straddle midnight UTC, or it proves nothing');
+
+  const old   = ev({ id: 'aaa', cfg: { date: day(30) }, created_at: '2026-01-01T00:00:00Z' });
+  const brand = ev({ id: 'zzz', cfg: { date: day(30) }, created_at: instant.toISOString() });
+  const history = replayHistory({ events: [old, brand], fromIso: day(-5), toIso: day(-1) });
+
+  const firstSeen = history.find(h => h.eventId === 'zzz');
+  assert.ok(firstSeen, 'the new event must appear at all');
+  assert.equal(firstSeen.date, born,
+    'it becomes a candidate on the day it was created LOCALLY, not on its UTC day');
+});
+
 test('exposure summarises total, recent and current run separately', () => {
   const history = [
     { eventId: 'aaa', date: day(-1) },
