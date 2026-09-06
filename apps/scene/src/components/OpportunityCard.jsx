@@ -1,4 +1,5 @@
 import { formatLocation } from '../lib/formatLocation';
+import { isConsideredStatus } from '../lib/opportunityCardStatus';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import DateBox from './DateBox';
 
@@ -7,7 +8,6 @@ const RGB    = PROFILE_TYPES.venue.rgb;
 
 const UNREAD     = ['new', 'pending'];
 const UNDECIDED  = ['new', 'pending', 'seen', 'viewed'];
-const CONSIDERED = ['shortlisted', 'interested', 'tentative'];
 
 /**
  * Level 1 — the Opportunity Card. Triage, not detail.
@@ -40,6 +40,9 @@ export default function OpportunityCard({ offer, availability, onOpen, onConside
   const isUnread    = UNREAD.includes(status);
   const isUndecided = UNDECIDED.includes(status);
   const isDeclined  = ['declined', 'rejected', 'cancelled'].includes(status);
+  /* An offer is INCOMING to the artist — a venue pitching them — which is the
+     direction this whole card is written from. See isConsideredStatus. */
+  const isConsidered = isConsideredStatus(status);
 
   // The one value hook — the deal, compressed. Not the full breakdown (that's
   // Level 2); just enough to know whether it's worth a look.
@@ -110,7 +113,7 @@ export default function OpportunityCard({ offer, availability, onOpen, onConside
       </div>
 
       {/* Stage-scoped verbs — only the moves that are live right now */}
-      {(isUndecided || CONSIDERED.includes(status)) && (
+      {(isUndecided || isConsidered) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.06)' }}>
           {isUndecided && (
             <button onClick={stop(onConsider)}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { applicantLabel, fetchOutgoingEnquiries, APP_TABS } from './outgoingPipeline.js';
+import { bucketsFor, rawStatusesFor } from './enquiryUtils.js';
 
 /**
  * ⚠⚠ A PROMOTER'S OWN ENQUIRIES HAD NOWHERE TO LAND.
@@ -257,11 +258,53 @@ test('VISIBILITY · no profile means an empty list, never the whole table', asyn
  */
 test('STATUS · the venue\'s vocabulary maps onto the asker\'s four buckets', () => {
   assert.equal(applicantLabel('pending'),     'SUBMITTED');
+  assert.equal(applicantLabel('new'),         'SUBMITTED');
   assert.equal(applicantLabel('shortlisted'), 'BEING CONSIDERED');
-  assert.equal(applicantLabel('interested'),  'BEING CONSIDERED');
+  assert.equal(applicantLabel('tentative'),   'BEING CONSIDERED');
+  assert.equal(applicantLabel('offered'),     'BEING CONSIDERED');
   assert.equal(applicantLabel('accepted'),    'BOOKED');
+  assert.equal(applicantLabel('confirmed'),   'BOOKED');
   assert.equal(applicantLabel('booked'),      'BOOKED');
   assert.equal(applicantLabel('declined'),    'NOT SELECTED');
+  assert.equal(applicantLabel('rejected'),    'NOT SELECTED');
+});
+
+test('STATUS · ⛔⛔ `interested` IS A BUCKET, NOT A STORED STATUS', () => {
+  /**
+   * ⚠⚠ THIS TEST USED TO ASSERT THE OPPOSITE. It pinned
+   * `applicantLabel('interested') === 'BEING CONSIDERED'`, encoding the very
+   * misconception the label function carried. `interested` is the OUTGOING
+   * BUCKET — the ASKER's name for the state the recipient calls `shortlisted`
+   * — and it appears in `enquiryUtils` only as a map VALUE. Nothing writes it,
+   * so handing it to a function that takes a RAW status is a malformed
+   * question, and answering it with the considered bucket disguised which side
+   * of the map the caller was on.
+   *
+   * ⭐ THE RELATIONSHIP IT NAMES IS REAL AND STAYS: the three raw spellings
+   * below all bucket as `interested` for whoever did the asking, whatever kind
+   * of profile either side is.
+   */
+  for (const dir of ['incoming', 'outgoing']) {
+    for (const b of bucketsFor(dir)) {
+      assert.ok(!rawStatusesFor(b, dir).includes('interested'),
+        `interested must not be a raw status of ${dir}/${b}`);
+    }
+  }
+  assert.deepEqual(rawStatusesFor('interested', 'outgoing').sort(),
+    ['offered', 'shortlisted', 'tentative']);
+  for (const raw of rawStatusesFor('interested', 'outgoing')) {
+    assert.equal(applicantLabel(raw), 'BEING CONSIDERED', `${raw} is the asker's INTERESTED`);
+  }
+  // ⛔ and the bucket name itself is an unknown status, filed under the catch-all
+  assert.equal(applicantLabel('interested'), 'SUBMITTED');
+});
+
+test('STATUS · ⭐ a WITHDRAWN ask is off the table, not still waiting', () => {
+  /* ⛔⛔ `cancelled` used to fall through every raw list to the default and
+     read as SUBMITTED — an ask the person had deliberately withdrawn, shown as
+     though it were still out there. Both status maps file it under `declined`,
+     the "off the table" pile, and deriving the bucket picks that up for free. */
+  assert.equal(applicantLabel('cancelled'), 'NOT SELECTED');
 });
 
 test('STATUS · an unknown or missing status is SUBMITTED, never dropped', () => {

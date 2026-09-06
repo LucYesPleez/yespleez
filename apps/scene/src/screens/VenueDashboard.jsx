@@ -4,6 +4,7 @@ import { useDashboardLanding } from '../lib/useDashboardLanding';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { cancelEnquiry } from '../lib/cancelEnquiry';
+import { updateEnquiryStatus } from '../lib/updateEnquiryStatus';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { planAcceptedEnquiry, draftEventForAcceptance } from '../lib/acceptedEnquiryEvent';
@@ -232,7 +233,24 @@ export default function VenueDashboard({ userId: userIdProp }) {
       setEnquiries(allEnquiries.filter(e => e.id !== id));
       return;
     }
-    await supabase.from('venue_enquiries').update({ status }).eq('id', id);
+    /**
+     * ⛔⛔ THE WRITE IS VERIFIED, AND EVERYTHING BELOW DEPENDS ON IT.
+     *
+     * This was a bare `await …update({ status }).eq('id', id)` that inspected
+     * NOTHING — not even `error`. RLS filters an UPDATE rather than erroring
+     * it, so a refused decision still moved the card, still ran `onAccepted`
+     * (which creates a draft event or puts the act on an existing one) and
+     * still told the artist their enquiry was accepted, while the row itself
+     * stayed pending.
+     *
+     * ⭐ The early return is what makes those three unreachable rather than
+     * merely skipped, and it matches the `cancelled` branch immediately above,
+     * which already returns silently when `cancelEnquiry` reports a failure.
+     * ⚠ This screen has no error banner; leaving the card where it was is the
+     * honest outcome, because it does not claim a decision that did not land.
+     */
+    const res = await updateEnquiryStatus(id, status);
+    if (!res.ok) return;
     setEnquiries(allEnquiries.map(e => e.id === id ? { ...e, status } : e));
     const enq = allEnquiries.find(e => e.id === id);
     if (!enq) return;
@@ -255,7 +273,15 @@ export default function VenueDashboard({ userId: userIdProp }) {
       accepted:    { type: 'booking_confirmed',    message: `${venueName} accepted your enquiry${eventName ? ` for ${eventName}` : ''}. Next: agree the booking details.` },
       booked:      { type: 'booking_confirmed',    message: `${venueName} confirmed your booking${eventName ? ` for ${eventName}` : ''}.` },
       declined:    { type: 'application_declined', message: `${venueName} passed on your application${eventName ? ` for ${eventName}` : ''}.` },
-      interested:  { type: 'shortlisted',          message: `${venueName} is interested in your enquiry${eventName ? ` for ${eventName}` : ''}.` },
+      /* ⛔⛔ THERE WAS AN `interested:` KEY HERE AND IT COULD NEVER FIRE. This
+         map is `NOTIF[status]` — keyed on the RAW status being written — and
+         `interested` is a BUCKET, the asker's name for the state this side
+         calls `shortlisted`. It is a map VALUE in enquiryUtils, never a key,
+         and the decision button writes `shortlisted` (EnquiryCard). So the
+         asker was already told by the `shortlisted` entry above, and this one
+         was dead vocabulary that made the raw column look like it could hold a
+         bucket name. ⛔ Do not add it back: if the wording above is ever wrong,
+         fix the wording. */
     };
     const notif = NOTIF[status];
     if (notif && artistId) {

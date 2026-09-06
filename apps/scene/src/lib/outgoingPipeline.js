@@ -1,3 +1,5 @@
+import { normaliseStatus } from './enquiryUtils';
+
 /**
  * ⭐ THE APPLICANT-SIDE PIPELINE — one vocabulary, every asker.
  *
@@ -35,12 +37,40 @@ export const APP_TAB_COLOR = {
  * notifActions.js) — they used to fall through every bucket, counted in the
  * OUTGOING total but invisible in every sub-tab.
  */
+/**
+ * ⛔⛔ IT USED TO TEST THE RAW COLUMN AGAINST A LIST CONTAINING `interested`,
+ * WHICH IS NOT A STORED STATUS.
+ *
+ * `interested` is the OUTGOING BUCKET — the ASKER's name for the state the
+ * receiving side calls `shortlisted`. One row, read from two sides:
+ *
+ *     database        host sees        asker sees
+ *     shortlisted  →  SHORTLISTED  ·  INTERESTED
+ *
+ * ⭐ That asymmetry is a deliberate product decision and it stays: an asker
+ * should not be shown "shortlisted" just to make the vocabulary symmetrical.
+ * ⛔ But a BUCKET name in a test against a raw column value is always a bug —
+ * it can never match, and it disguises which side of the map you are on.
+ *
+ * ⭐ So the bucket is DERIVED and the label is a pure translation of it. Every
+ * spelling behaves exactly as before except two, both of which were wrong:
+ *
+ *   `cancelled`   was SUBMITTED, is NOT SELECTED — a withdrawn ask fell to the
+ *                 default and read as though it were still out there waiting.
+ *   `interested`  was BEING CONSIDERED, is SUBMITTED — nothing writes it, so
+ *                 this only answers a malformed question honestly.
+ */
+/* ⚠ The status model, not a second copy of it. `enquiryUtils` is already this
+   file's neighbour — it re-exports the fade rule from there at the bottom. */
+const BUCKET_LABEL = {
+  awaiting:   'SUBMITTED',
+  interested: 'BEING CONSIDERED',
+  accepted:   'BOOKED',
+  declined:   'NOT SELECTED',
+};
+
 export function applicantLabel(status) {
-  const s = (status || 'pending').toLowerCase();
-  if (['declined', 'rejected'].includes(s))                              return 'NOT SELECTED';
-  if (['accepted', 'booked', 'confirmed'].includes(s))                   return 'BOOKED';
-  if (['shortlisted', 'interested', 'tentative', 'offered'].includes(s)) return 'BEING CONSIDERED';
-  return 'SUBMITTED'; // pending, new, viewed, or any other/unrecognised status
+  return BUCKET_LABEL[normaliseStatus({ status, direction: 'outgoing' })] || 'SUBMITTED';
 }
 
 /* ⚠ DECLINE_FADE_DAYS / isFadedDecline MOVED to lib/enquiryUtils.js — the

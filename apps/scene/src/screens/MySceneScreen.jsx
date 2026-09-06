@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { normaliseStatus } from '../lib/enquiryUtils';
 import { useSession } from '../App';
 import EventCard from '../components/EventCard';
 import AccountInviteSheet from '../components/AccountInviteSheet';
@@ -628,7 +629,21 @@ export default function MySceneScreen() {
     myEventIds:      new Set(myEvents.map(ev => ev.id)),
     playingEventIds: new Set([
       ...playingEvents.map(ev => ev.id),
-      ...apps.filter(a => a.status === 'accepted').map(a => a.event_id),
+      /**
+       * ⛔⛔ THE BUCKET, ⛔ not the literal. This was `a.status === 'accepted'`,
+       * which misses `confirmed` and `booked` — the other two spellings that
+       * mean the same thing, both written by the host slot-offer flow. An act
+       * whose application had been confirmed was simply not counted as playing,
+       * so the night lost its PLAYING treatment in the spotlight.
+       *
+       * ⚠ `outgoing`: these are the viewer's OWN applications (`artist_id =
+       * uid`), so they are the initiator. The accepted bucket happens to cover
+       * the same three spellings from either side, but the direction should
+       * still say what is true.
+       */
+      ...apps
+        .filter(a => normaliseStatus({ status: a.status, direction: 'outgoing' }) === 'accepted')
+        .map(a => a.event_id),
     ].filter(Boolean)),
     savedEventIds:   new Set(follows.filter(f => f.entity_type === 'event').map(f => f.entity_id)),
     favProfileIds, favUserIds,
