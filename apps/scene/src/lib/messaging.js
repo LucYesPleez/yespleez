@@ -357,6 +357,30 @@ export async function markConversationRead(conversationId) {
   const { data, error } = await supabase.rpc('mark_conversation_read', {
     p_conversation_id: conversationId,
   });
+  /**
+   * ⛔⛔ DEF-2 IS ANNOUNCED HERE, NOT AT THE CALL SITES. Advancing the read
+   * watermark is a WRITE that emits no realtime event, so the nav badge would
+   * keep showing a count for messages the reader has already seen.
+   *
+   * ⚠⚠ IT USED TO BE DISPATCHED BY THE CALLER, AND FOUR CALLERS MEANT THREE
+   * BUGS. `ConversationView` marks read in four places and only ONE of them
+   * announced it — the other three were "a message arrived while you are at the
+   * bottom of the thread", "jump to latest", and the scroll handler. So the
+   * commonest case of all, reading a live conversation with the thread open,
+   * advanced the watermark silently: the inbox row correctly dropped to zero
+   * while the nav badge sat on 1 (owner, 2026-09-06: "it showed a 1 icon on the
+   * taskbar ... but it didnt show here").
+   *
+   * ⭐⭐ ONE WRITER, so a fifth call site cannot forget. Same lesson as DEF-4,
+   * where the read-marking rule lived in two components and every new exclusion
+   * had to be remembered in both.
+   *
+   * ⚠ ONLY ON SUCCESS. A failed RPC moved no watermark, and announcing one
+   * would make the badge drop to a number the database does not agree with.
+   */
+  if (!error && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('yp:messages-read', { detail: { conversationId } }));
+  }
   return { readAt: error ? null : data, error: error ?? null };
 }
 

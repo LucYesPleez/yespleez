@@ -399,7 +399,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // context, the effect re-runs, cancels its own in-flight load, and patches
   // again — the thread never finishes loading. getState/patch are useCallback
   // -stable, so depend on those instead of the object holding them.
-  const { getState, patch } = useConversationUi();
+  const { getState, patch, openId } = useConversationUi();
 
   const [messages, setMessages]    = useState([]);
   // The Outbox's in-flight entries for THIS conversation — queued / uploading /
@@ -483,6 +483,20 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [indexMode, setIndexMode] = useState(null);   // null | 'search'|'media'|'files'|'links'
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
+  /**
+   * ⭐⭐ IS THIS THREAD ACTUALLY ON SCREEN? A minimised conversation stays
+   * MOUNTED — that is the dock's whole design, because unmounting would make
+   * "minimise" mean "discard" — so this component keeps running its realtime
+   * handler for threads the reader cannot see.
+   *
+   * ⚠⚠ A REF, ⛔ NOT A DEPENDENCY. The comment at the top of this component
+   * records why: the context value changes identity whenever a conversation
+   * opens or a pill repaints, and an effect that both depends on it and calls
+   * patch() restarts itself forever. This mirrors `atBottomRef` above — read at
+   * event time, never in a dependency array.
+   */
+  const onScreenRef = useRef(false);
+  useEffect(() => { onScreenRef.current = openId === conversationId; }, [openId, conversationId]);
 
   // The ⋮ menu's own drag-to-shrink handle. `menuHeight` null means "natural
   // height, no cap" — the common case, since the menu is short. Set only once
@@ -653,12 +667,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
       await markConversationRead(conversationId);
       announceReceipt('read');
       patch(conversationId, { unread: 0 }, true);
-      // DEF-2 — tell the app shell the watermark moved. Advancing read state
-      // is a WRITE that emits no realtime event, so the nav badge (which
-      // refreshes on notification inserts or a 60s poll) would otherwise show
-      // a stale count until the poll caught up. A window event rather than a
-      // prop chain because the badge lives ABOVE this provider in the tree.
-      window.dispatchEvent(new CustomEvent('yp:messages-read', { detail: { conversationId } }));
+      /* ⚠ DEF-2 MOVED INTO `markConversationRead` (2026-09-06). The dispatch
+         lived here, and three of this file's four other read-marking paths did
+         not have it — so reading a live conversation with the thread open left
+         the nav badge stale while the inbox row correctly showed nothing.
+         ⛔ Do not announce it from a call site again. */
 
       // MP·5 — a push notification for this conversation may still be sitting
       // in the OS notification tray from before it was read. Reading the
@@ -715,8 +728,32 @@ export default function ConversationView({ conversationId, compact = false, onMi
           markConversationDelivered(conversationId);
           announceReceipt('delivered');
 
-          if (atBottomRef.current) {
-            // Reading at the bottom: the watermark should follow.
+          /**
+           * ⛔⛔ ARRIVING IS NOT READING, AND `atBottomRef` ALONE SAID IT WAS.
+           *
+           * A minimised thread is mounted and still scrolled to its bottom, so
+           * every message that landed in a docked tab was marked read on
+           * arrival. The inbox row then correctly showed nothing — no highlight,
+           * no count — and the only way to tell WHO had written was the gradient
+           * on the tab (owner, 2026-09-06: "i hadnt read it yet. i couldnt tell
+           * by looking at this screen which message thread sent the message").
+           *
+           * ⭐⭐ THIS IS DEF-4 APPLIED TO MESSAGES: "rendering data into the DOM
+           * is not sufficient. A notification becomes read after it has been
+           * visibly displayed to the user." A background tab renders; it does
+           * not display.
+           *
+           * ⚠ THREE CONDITIONS, ALL REQUIRED: scrolled to the bottom, this
+           * thread is the one open on screen, and the app itself is in the
+           * foreground. ⛔ Dropping any one of them marks messages read that
+           * nobody looked at, and there is no undo — the watermark is monotonic.
+           */
+          const reallyLooking = atBottomRef.current
+            && onScreenRef.current
+            && (typeof document === 'undefined' || document.visibilityState === 'visible');
+          if (reallyLooking) {
+            // Reading at the bottom, thread open, app in front: the watermark
+            // should follow.
             markConversationRead(conversationId);
             announceReceipt('read');
           } else {
