@@ -38,6 +38,11 @@ export default function ApplicationsScreen() {
   // the screen would have opened on a tab whose button does not exist.
   const [tab,       setTab]       = useState('NEW');
   const [loading,   setLoading]   = useState(true);
+  /* ⚠⚠ THIS SCREEN COULD NOT REPORT A REFUSED DECISION. An RLS-filtered
+     UPDATE returns `error: null` and changes nothing, so a co-host without
+     rights saw the row move and the applicant got told. Silence is the
+     wrong answer when somebody else is notified of the outcome. */
+  const [respondError, setRespondError] = useState('');
 
   useEffect(() => {
     if (!eventId) return;
@@ -70,7 +75,29 @@ export default function ApplicationsScreen() {
   }, [eventId]);
 
   async function respond(appId, status, artistId) {
-    await supabase.from('applications').update({ status }).eq('id', appId);
+    /**
+     * ⛔⛔ `.select()` IS THE VERIFICATION, AND EVERYTHING BELOW DEPENDS ON IT.
+     *
+     * RLS FILTERS AN UPDATE RATHER THAN ERRORING IT, and this surface is the
+     * one a CO-HOST is most likely to be filtered on. Trusting `error: null`
+     * meant a blocked decision still sent the applicant "your application was
+     * unsuccessful", still fired the analytics event, and still moved the row
+     * into DECLINED locally — while it stayed in NEW for the actual owner. Two
+     * hosts, two different truths, and an artist told the losing one.
+     *
+     * ⭐ Same rule `lib/cancelEnquiry` states for enquiries:
+     * ⛔ NO NOTIFICATION ON A FAILED WRITE.
+     */
+    const { data: changed, error } = await supabase
+      .from('applications')
+      .update({ status })
+      .eq('id', appId)
+      .select('id');
+    if (error || !(changed || []).length) {
+      setRespondError('That decision did not go through. Nothing was changed.');
+      return;
+    }
+    setRespondError('');
     // AV5: observe the host decision at its authoritative write.
     // applications.status stays the truth; this row only records that the
     // transition happened. Ids are opaque props — no FK, by taxonomy rule.
@@ -113,6 +140,13 @@ export default function ApplicationsScreen() {
         <h1 className={s.title}>APPLICATIONS</h1>
         <span className={s.count}>{apps.length}</span>
       </div>
+
+      {respondError && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
+          <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>{respondError}</span>
+          <button onClick={() => setRespondError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+      )}
 
       <div className={s.tabs}>
         {STATUS_TABS.map(t => (

@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification, inferToProfileId } from '../lib/writeNotification';
 import { useSession } from '../App';
-import { today, formatDisplayDate } from '../lib/dates';
+import { today, formatDisplayDate, localDateStr } from '../lib/dates';
 import { eventRunsOn } from '../lib/eventDays';
 import { withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
@@ -30,7 +30,7 @@ import EnquiryCard from '../components/EnquiryCard';
 import { OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
 import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
-import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { normaliseStatus, STATUS_TAB_COLOR, rawStatusesFor } from '../lib/enquiryUtils';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -84,7 +84,21 @@ const IN_EMPTY = {
 function ApplicationRow({ app, badge, badgeColor, onDelete }) {
   const [confirming, setConfirming] = useState(false);
   const deletable = badge === 'NOT SELECTED';
-  const appliedOn = app.created_at ? formatDisplayDate(app.created_at.slice(0, 10)) : '';
+  /**
+   * ⛔⛔ `created_at` IS A TIMESTAMP, NOT A DATE, AND SLICING IT GIVES UTC.
+   *
+   * ⚠⚠ THE DISTINCTION THAT MATTERS: an EVENT's `config.date` is a bare
+   * "2026-10-17", a calendar date in the venue's own reality, and slicing or
+   * string-comparing that is correct — it is what the What's On path does on
+   * purpose. `created_at` is a `timestamptz`, an instant. An application made
+   * at 9am on 14 Aug in Sydney is stored `2026-08-13T23:00:00Z`, so the slice
+   * captioned it "Applied 13 Aug". Everything submitted between local midnight
+   * and 10am AEST read as the day before.
+   *
+   * ⭐ `localDateStr` is in lib/dates.js for exactly this, and its comment says
+   * so. ⛔ Never slice a timestamp column for a date.
+   */
+  const appliedOn = app.created_at ? formatDisplayDate(localDateStr(new Date(app.created_at))) : '';
 
   return (
     <div>
@@ -154,6 +168,14 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const followDrag = useDragScroll('artist-dashboard-following');
   const [offers,        setOffers]        = useState([]);
   const [loadingOffers, setLoadingOffers] = useState(false);
+  /**
+   * ⚠⚠ THIS SCREEN HAD NO WAY TO REPORT A REFUSED WRITE. Accepting or
+   * declining an invite is a real decision, and an RLS-filtered UPDATE returns
+   * `error: null` while changing nothing — so a refusal looked exactly like a
+   * success and the card moved anyway. Silence is the wrong answer for a
+   * booking; this is the one place the screen says so.
+   */
+  const [offerError,    setOfferError]    = useState('');
   const offersLoaded = useRef(false);
 
   const { data, isLoading: loading } = useQuery({
@@ -253,6 +275,21 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             .select('id', { count: 'exact', head: true })
             .eq('applicant_profile_id', profileId)
             .eq('initiated_by', 'venue')
+            /**
+             * ⛔⛔ NEW ONLY. This had NO status filter, so it counted every
+             * venue-initiated enquiry ever received — accepted, declined,
+             * cancelled, all of it — and the attention banner rendered it as
+             * "N new offers". An act who had answered all twelve invitations
+             * they ever had was told they had twelve waiting, and the number
+             * silently collapsed to the truth the moment they opened the
+             * INCOMING tab, because that path filters properly.
+             *
+             * ⭐ `rawStatusesFor('new')`, ⛔ not a hand-typed list: the venue
+             * side already derives its own count that way, and two vocabularies
+             * reach this table (`new` and `pending`). Hardcoding one of them is
+             * how the other stops being counted.
+             */
+            .in('status', rawStatusesFor('new'))
         : { count: 0 };
 
       return { profile: profRes.data, applications, outgoingEnquiries, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
@@ -449,7 +486,34 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         event_id: offer.event_id, artist_id: userId, from_profile_id: fromProfileId, status: 'pending',
       });
     }
-    await supabase.from('venue_enquiries').update({ status }).eq('id', id);
+    /**
+     * ⛔⛔ `.select()` IS THE VERIFICATION, AND THE NOTICE DEPENDS ON IT.
+     *
+     * RLS FILTERS AN UPDATE RATHER THAN ERRORING IT: a policy that forbids this
+     * write returns `error: null` and touches nothing. This trusted that
+     * silence and then told the venue "an artist accepted your invite" while
+     * flipping the card to ACCEPTED locally — so the venue held a date for a
+     * booking the database still called pending, and the act's own screen
+     * disagreed with both.
+     *
+     * ⭐ `lib/cancelEnquiry` already states the rule for this exact table:
+     * ⛔ NO NOTIFICATION ON A FAILED WRITE. It was never applied here.
+     *
+     * ⚠ SCOPED TO THIS PROFILE, like its sibling `handleClearEnquiries`. An
+     * unscoped id is a write nobody narrowed, and the scope is what turns an
+     * RLS refusal into a deliberate no-op rather than an accident.
+     */
+    const { data: changed, error: statusErr } = await supabase
+      .from('venue_enquiries')
+      .update({ status })
+      .eq('id', id)
+      .eq('applicant_profile_id', profile?.id)
+      .select('id');
+    if (statusErr || !(changed || []).length) {
+      setOfferError('That did not go through. Nothing was changed.');
+      return;
+    }
+    setOfferError('');
     if (offer.venue_user_id && status === 'accepted') {
       // §A7: about = the performer profile that accepted (the same one the
       // application was attributed to, resolved above — never re-derived, or
@@ -705,6 +769,16 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
 
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
+        {/* ⚠ A REFUSED DECISION SAYS SO. Accepting or declining is a booking
+            decision, and an RLS-filtered write changes nothing while reporting
+            no error — so without this the card simply would not move and the
+            act would not know why. */}
+        {offerError && (
+          <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
+            <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>{offerError}</span>
+            <button onClick={() => setOfferError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <p style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff', margin: 0 }}>ENQUIRIES</p>
           {/* ⚠ THE CALENDAR CHIP, PRESENT ON FIVE SURFACES INSTEAD OF TWO.
