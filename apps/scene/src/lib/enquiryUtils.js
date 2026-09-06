@@ -239,20 +239,49 @@ export const FALLBACK_BUCKET = { incoming: 'new', outgoing: 'awaiting' };
  * PostgREST and evaluated in a test without either guessing what the other did:
  *   { kind: 'in',            statuses }  — row matches iff status ∈ statuses
  *   { kind: 'not-in-or-null', statuses } — row matches iff status is NULL or ∉
+ *
+ * ⭐ TAKES ONE BUCKET **OR A UNION OF THEM**, because some questions are a
+ * union and asking them one bucket at a time is how a count and its list come
+ * apart. `PIPELINE_BUCKETS` (`new` + `seen`) is the one that matters: "still
+ * waiting on the host" is not a single bucket, and HostDashboard's header
+ * counted `new` alone while the list beneath it read both — so OPENING an
+ * application (which auto-writes `seen`) decremented the number while the row
+ * stayed put. ⚠ A single-bucket string still behaves exactly as before.
  */
 export function bucketFilterFor(bucket, direction = 'incoming') {
   const dir = String(direction).toLowerCase() === 'outgoing' ? 'outgoing' : 'incoming';
-  if (bucket !== FALLBACK_BUCKET[dir]) {
-    return { kind: 'in', statuses: rawStatusesFor(bucket, dir) };
+  const wanted = Array.isArray(bucket) ? [...new Set(bucket)] : [bucket];
+
+  /**
+   * ⛔⛔ THE CATCH-ALL DECIDES THE FORM, and it decides it for the whole union.
+   * If ANY wanted bucket is the one unrecognised statuses fall into, then the
+   * honest question is "everything except the buckets I did NOT ask for" —
+   * because that is the only phrasing that also admits the unknown and the
+   * NULL, exactly as `normaliseStatus` does. If none of them is the catch-all,
+   * the mapped spellings ARE the whole answer and a positive `.in()` is exact.
+   */
+  if (!wanted.includes(FALLBACK_BUCKET[dir])) {
+    const statuses = wanted.flatMap(b => rawStatusesFor(b, dir));
+    return { kind: 'in', statuses: [...new Set(statuses)] };
   }
-  /* Every spelling that belongs to some OTHER bucket. Anything else — an
-     unknown spelling, or NULL — is this bucket, which is what the renderer
-     does. ⭐ Derived from the same map, so a spelling added to the map leaves
-     the catch-all automatically and the two cannot drift. */
+  /* Every spelling that belongs to some bucket we did NOT ask for. Anything
+     else — an unknown spelling, or NULL — is in. ⭐ Derived from the same map,
+     so a spelling added to the map leaves the catch-all automatically and the
+     two cannot drift. */
   const others = bucketsFor(dir)
-    .filter(b => b !== bucket)
+    .filter(b => !wanted.includes(b))
     .flatMap(b => rawStatusesFor(b, dir));
   return { kind: 'not-in-or-null', statuses: [...new Set(others)] };
+}
+
+/**
+ * Does a row fall in this bucket (or union)? ⭐ The renderer's own answer —
+ * `buckets.includes(normaliseStatus(row))` — must agree with
+ * `bucketFilterMatches(bucketFilterFor(buckets), status)` for every status, in
+ * both directions. `enquiryBucketFilter.test.js` pins exactly that.
+ */
+export function bucketMatches(bucket, status, direction = 'incoming') {
+  return bucketFilterMatches(bucketFilterFor(bucket, direction), status);
 }
 
 /**
@@ -267,14 +296,23 @@ export function bucketFilterMatches(filter, status) {
 }
 
 /**
- * Apply a bucket to a PostgREST query builder. ⚠ `.or()` is the only form that
- * can say "NULL or not one of these": `NOT IN (…)` alone evaluates to NULL for
- * a NULL status, and a NULL predicate excludes the row.
+ * Apply a bucket, or a union of buckets, to a PostgREST query builder.
+ *
+ * ⚠ `.or()` is the only form that can say "NULL or not one of these": `NOT IN
+ * (…)` alone evaluates to NULL for a NULL status, and a NULL predicate excludes
+ * the row.
  *
  * ⚠ `venue_enquiries.status` is `NOT NULL DEFAULT 'pending'`, so the null leg
- * is unreachable on that table today. `applications.status` is nullable, and it
+ * is unreachable on that table today. `applications.status` IS nullable, and it
  * is the same question — the leg stays so the answer does not depend on which
  * table the caller happens to be asking about.
+ *
+ * ⛔ READ FILTERS ONLY. Every consequential write in this codebase
+ * (`dateLockout`'s sweep to `declined`, `answerOpenRequests`' write to
+ * `accepted`, the applications DELETE, the auto-`seen` on open) is deliberately
+ * NARROWER than its bucket, and each says why at its own site. ⛔⛔ Do not
+ * reach for this to widen one of them: admitting unknown and NULL is right for
+ * a number on a screen and wrong for a write nobody can undo.
  */
 export function applyBucketFilter(query, bucket, direction = 'incoming') {
   const f = bucketFilterFor(bucket, direction);

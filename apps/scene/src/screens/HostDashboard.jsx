@@ -55,7 +55,7 @@ import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { cancelEnquiry } from '../lib/cancelEnquiry';
-import { withDirection, normaliseStatus, rawStatusesFor, clearedColumnFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { withDirection, normaliseStatus, applyBucketFilter, clearedColumnFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import QrCodesSection from '../components/QrCodesSection';
@@ -200,13 +200,30 @@ export default function HostDashboard({ userId: userIdProp }) {
          * — and agreed with the list below it only because that list was built
          * from the same wrong query.
          */
-        /* ⚠ A SERVER COUNT CANNOT CALL THE NORMALISER, so the raw spellings are
-           DERIVED from the same map the renderer uses (`rawStatusesFor`). This
-           was `.eq('status','pending')` — zero rows in production, so the
-           header's APPLICATIONS number was always 0 while real applications
-           sat underneath it. */
+        /**
+         * ⚠ A SERVER COUNT CANNOT CALL THE NORMALISER, so the bucket is
+         * translated by `applyBucketFilter` from the same maps the renderer
+         * uses. This was `.eq('status','pending')` — zero rows in production,
+         * so the header's APPLICATIONS number was always 0 while real
+         * applications sat underneath it.
+         *
+         * ⛔⛔ AND THEN IT COUNTED THE WRONG BUCKET. It became
+         * `.in('status', rawStatusesFor('new'))` — `new` ALONE — while the list
+         * it labels (`newApps`, below) reads `PIPELINE_BUCKETS`, which is
+         * `new` AND `seen`. `EnquiryCard` auto-writes `seen` the moment an
+         * application is expanded, so OPENING one decremented this header while
+         * the row stayed exactly where it was. Reading is not deciding, and the
+         * count has to agree with the list it sits on top of.
+         *
+         * ⭐ `PIPELINE_BUCKETS` — the same constant, ⛔ not a second list. It
+         * contains the catch-all bucket, so this emits the NULL-safe negative
+         * form: `applications.status` is NULLABLE, and an unknown or NULL status
+         * renders in this list, so it must be counted in this number too.
+         */
         const [pendingRes, billRes] = await Promise.all([
-          supabase.from('applications').select('id', { count: 'exact', head: true }).in('event_id', evtIds).in('status', rawStatusesFor('new')),
+          applyBucketFilter(
+            supabase.from('applications').select('id', { count: 'exact', head: true }).in('event_id', evtIds),
+            PIPELINE_BUCKETS),
           supabase.from('lineup_members').select('id', { count: 'exact', head: true }).in('event_id', evtIds).eq('status', 'on_bill'),
         ]);
         newAppsCount      = pendingRes.count || 0;

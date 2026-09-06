@@ -656,7 +656,23 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
      not need finding, and a played list of a hundred does. */
   const historyList = filterPastEvents(pastGigs, pastGigSearch);
 
-  const newAppsCount  = applications.filter(a => (a.status || 'pending') === 'pending').length;
+  /**
+   * ⛔⛔ THESE ARE THE ARTIST'S **OUTGOING** APPLICATIONS, and this counted them
+   * with a hand-written rule that named no direction at all.
+   *
+   * It was `(a.status || 'pending') === 'pending'`. `applications` here are the
+   * asker's own (`from_profile_id = profileId`), so the canonical bucket is
+   * `awaiting` — which is `pending` AND `new`, plus the catch-all. The literal
+   * missed `new` outright, so an application written in the newer vocabulary
+   * sat in the AWAITING tab while this banner said there was nothing waiting.
+   *
+   * ⭐ `normaliseStatus` with the direction stated, ⛔ not a raw comparison:
+   * `outStatuses` (above) buckets the very same rows that way, so the number
+   * and the list it summarises now answer one question. The catch-all carries
+   * unknown and NULL exactly as the list does.
+   */
+  const newAppsCount  = applications
+    .filter(a => normaliseStatus({ status: a.status, direction: 'outgoing' }) === 'awaiting').length;
   // Prefer the loaded rows once they belong to THIS profile; until then the
   // profile-scoped count. Comparing against `profile.id` rather than testing
   // the ref for truthiness matters mid-switch: the ref already names the new
