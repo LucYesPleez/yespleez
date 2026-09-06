@@ -123,9 +123,21 @@
 .signOutBtn:hover { color: var(--text); border-color: var(--text); }
 
 /* Add profile card */
+/* ⭐ THE ONE CONTROL ON THIS SHEET THAT MAKES SOMETHING NEW, so it carries the
+   app's own gradient edge rather than a flat accent line — the same
+   #00E5FF → #BF5FFF pair used 47 times elsewhere, not a fresh colour.
+
+   ⚠⚠ TWO BACKGROUNDS, ONE ELEMENT, AND THE BORDER MUST STAY TRANSPARENT.
+   `border` cannot carry a gradient: the fill is clipped to the PADDING box and
+   the gradient to the BORDER box, so the gradient shows through the transparent
+   border as the edge. ⛔ Give the border a colour and the gradient vanishes
+   behind it — the same trick PortraitCard's edge uses, and it fails the same
+   silent way. */
 .cardAdd {
-  background: rgba(0,229,255,.05);
-  border: 1px solid rgba(0,229,255,.3);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card2), var(--card2)) padding-box,
+    linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
   border-radius: 14px;
   padding: 14px 20px;
   cursor: pointer;
@@ -134,10 +146,17 @@
   align-items: center;
   gap: 16px;
   width: 100%;
-  transition: border-color .2s;
+  transition: box-shadow .2s;
 }
 
-.cardAdd:hover { border-color: var(--neon2); }
+/* ⚠ HOVER LIFTS WITH A GLOW, ⛔ not a border-colour change: setting
+   `border-color` here would paint over the gradient and the edge would drop to
+   a flat line on hover. */
+.cardAdd:hover { box-shadow: 0 0 24px rgba(0,229,255,.28); }
+
+/* White, because the gradient is already carrying the colour. Two coloured
+   things fighting on one small control reads as decoration. */
+.cardAddTitle { color: #fff; }
 
 /* Guest state */
 .guestMsg {

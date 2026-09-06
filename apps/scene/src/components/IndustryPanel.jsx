@@ -76,7 +76,10 @@ export default function IndustryPanel({ open, onClose, onNavigate, session }) {
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
                   </svg>
                 </span>
-                <div className={s.cardTitle} style={{ color: 'var(--neon2)' }}>ADD PROFILE</div>
+                {/* ⚠ White via the stylesheet, ⛔ not an inline colour. The
+                    gradient edge is doing the colouring now, and an inline
+                    style would outrank the class if the treatment ever moves. */}
+                <div className={`${s.cardTitle} ${s.cardAddTitle}`}>ADD PROFILE</div>
               </button>
 
               {setupRoles.length === 0 && (
