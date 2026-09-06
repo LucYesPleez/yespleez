@@ -120,7 +120,10 @@ test('⛔⛔ the screen GUARDS on the result before its three side effects', () 
   const fn = code.slice(i);
 
   const call   = fn.indexOf('await updateEnquiryStatus(id, status)');
-  const guard  = fn.indexOf('if (!res.ok) return;');
+  /* ⚠ Matches the CONDITION, not a one-line body — the guard now sets the
+     error banner before returning, so pinning `if (!res.ok) return;` would
+     break the moment the failure started being reported. */
+  const guard  = fn.indexOf('if (!res.ok)');
   const state  = fn.indexOf('setEnquiries(allEnquiries.map(');
   const accept = fn.indexOf('await onAccepted(enq)');
   const notify = fn.indexOf('await writeNotification(');
@@ -168,4 +171,45 @@ test('⛔⛔ the dead `interested` NOTIF key is gone — a bucket is not a raw s
   for (const k of ['shortlisted', 'accepted', 'booked', 'declined']) {
     assert.ok(keys.includes(k), `${k} must still notify`);
   }
+});
+
+test('⭐ a refused decision SAYS SO — the screen has an error surface now', () => {
+  /**
+   * ⛔⛔ IT DID NOT, AND THAT WAS WORSE HERE THAN ANYWHERE ELSE. The
+   * verified write already refused to act on a failed update, but the screen
+   * returned without a word: the organiser pressed ACCEPT, the card sat still,
+   * and nothing said whether the night had been taken, the event made or the
+   * act told. Same banner as ApplicationsScreen and ArtistDashboard, because
+   * it is the same event.
+   */
+  const src = readFileSync(
+    fileURLToPath(new URL('../screens/VenueDashboard.jsx', import.meta.url)), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  const i = code.indexOf('async function handleEnquiryRespond');
+  const fn = code.slice(i);
+
+  const guard = fn.indexOf('if (!res.ok)');
+  const shout = fn.indexOf('setEnqError(', guard);
+  const ret   = fn.indexOf('return;', shout);
+  const state = fn.indexOf('setEnquiries(allEnquiries.map(');
+
+  assert.ok(guard > 0, 'the refusal guard must exist');
+  assert.ok(shout > guard && shout < ret, 'it must SET the message before returning');
+  assert.ok(state > ret, 'and still not move the card');
+  assert.match(fn, /setEnqError\('That decision did not go through\. Nothing was changed\.'\)/);
+
+  /* ⭐ CLEARED ON SUCCESS, or a stale failure sits over a decision that then
+     worked — which is its own kind of lie. */
+  assert.match(fn, /setEnqError\(''\)/);
+
+  /* ⚠ The cancel branch had the identical silence one branch up. */
+  assert.match(fn, /setEnqError\('That withdrawal did not go through\. Nothing was changed\.'\)/);
+
+  /* ⛔ RENDERED, not merely set — and outside the shared EnquiryPanel, which
+     three dashboards use. */
+  assert.match(code, /\{enqError &&/, 'the banner must actually render');
+  assert.match(code, /role="alert"/, 'and be announced');
+  assert.ok(code.indexOf('{enqError &&') < code.indexOf('<EnquiryPanel'),
+    'it belongs above the shared panel, not inside it');
 });

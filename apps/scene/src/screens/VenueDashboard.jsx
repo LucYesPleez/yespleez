@@ -44,6 +44,18 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const navigate = useNavigate();
   const userId = userIdProp || session?.user?.id;
   const [enquiries,      setEnquiries]      = useState([]);
+  /**
+   * ⛔⛔ THIS SCREEN COULD NOT REPORT A REFUSED DECISION, AND THAT WAS WORSE
+   * HERE THAN ANYWHERE ELSE. Accepting an enquiry deletes the night's
+   * availability, creates or joins an event and tells the act they are in — so
+   * a refusal that shows nothing leaves the organiser pressing ACCEPT at a card
+   * that never moves, with no way to tell whether any of it happened.
+   *
+   * ⚠ The verified write already refuses to act on a failed update; this is the
+   * half that was missing — saying so. Same banner as ApplicationsScreen and
+   * ArtistDashboard, because it is the same event.
+   */
+  const [enqError,       setEnqError]       = useState('');
   // Bumped when accepting closes a night — see onAccepted.
   const [availReload,    setAvailReload]    = useState(0);
   // ⛔ `localAvail` / `showAvailCal` are gone with VenueAvailCalendar —
@@ -229,7 +241,16 @@ export default function VenueDashboard({ userId: userIdProp }) {
       const row = allEnquiries.find(e => e.id === id);
       if (!row || !profile?.id) return;
       const { error } = await cancelEnquiry(row, profile.id, profile.name);
-      if (error) return;
+      /* ⚠ THE SAME SILENCE, ONE BRANCH UP. This returned without a word too,
+         so a failed withdrawal looked identical to a successful one.
+         ⛔ Only on `error`: `cancelEnquiry` also reports `alreadyCancelled`,
+         which is not a failure — the asker got what they wanted, and the row
+         is already gone from this list. */
+      if (error) {
+        setEnqError('That withdrawal did not go through. Nothing was changed.');
+        return;
+      }
+      setEnqError('');
       setEnquiries(allEnquiries.filter(e => e.id !== id));
       return;
     }
@@ -250,7 +271,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
      * honest outcome, because it does not claim a decision that did not land.
      */
     const res = await updateEnquiryStatus(id, status);
-    if (!res.ok) return;
+    if (!res.ok) {
+      setEnqError('That decision did not go through. Nothing was changed.');
+      return;
+    }
+    setEnqError('');
     setEnquiries(allEnquiries.map(e => e.id === id ? { ...e, status } : e));
     const enq = allEnquiries.find(e => e.id === id);
     if (!enq) return;
@@ -552,6 +577,16 @@ export default function VenueDashboard({ userId: userIdProp }) {
           headingAction={<CalendarIconBtn onClick={() => setCalendarOpen(true)} label="Open the enquiry calendar" />}
           trailing={<SectionCollapseButton expanded={showAllEnq} onToggle={() => setShowAllEnq(v => !v)} />}
         >
+          {/* ⚠ ABOVE THE PANEL, ⛔ not inside it. EnquiryPanel is shared with
+              the host and artist surfaces, and a failure this screen's own
+              write produced is this screen's to report — pushing it into the
+              shared card would put a venue-only message on three dashboards. */}
+          {enqError && (
+            <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
+              <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>{enqError}</span>
+              <button onClick={() => setEnqError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+            </div>
+          )}
           {showAllEnq && (
             <EnquiryPanel
               enquiries={allEnquiries}
