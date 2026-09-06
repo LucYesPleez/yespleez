@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId } from '../lib/actingProfile';
-import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
+import { resolveLocationToPostcodes, suggestLocations, isAmbiguousLocation, locationOptions, plainLocationName } from '../lib/auLocations';
 import { isKnownPostcode } from '../lib/geo';
 import AvatarUpload from '../components/AvatarUpload';
 import MessengerAvatar from '../components/MessengerAvatar';
@@ -142,14 +142,37 @@ export default function MessengerIdentityScreen() {
     if (/^\d{4}$/.test(digits) && isKnownPostcode(digits)) {
       postcode = digits;
     } else {
+      /**
+       * ⛔⛔ ASK, DO NOT GUESS, WHEN A NAME MEANS MORE THAN ONE PLACE.
+       *
+       * ⚠ "One town can span several postcodes, and the lowest is deterministic"
+       * was true and is still true — but it only holds WITHIN one town. Across
+       * states it silently picked a place: `newtown` covers 2042 in Sydney,
+       * 3220 in Geelong and 6021 in Perth, and taking the lowest would file a
+       * Perth act in Sydney without either of us knowing (owner, 2026-09-06).
+       *
+       * ⭐ There is no autocomplete on this field, so the question is asked in
+       * the status line. Typing "Newtown, NSW" answers it and resolves exactly.
+       */
+      if (isAmbiguousLocation(typed)) {
+        const where = locationOptions(typed).map(o => o.label).join('  ·  ');
+        setLocStatus(`More than one place is called ${typed}. Type one of these: ${where}`);
+        return;
+      }
       const codes = resolveLocationToPostcodes(typed);
       // One town can span several postcodes; the lowest is deterministic, and
       // any of them places the same town within a few km.
-      if (codes.length) { postcode = [...codes].sort()[0]; suburb = typed; }
+      /* ⚠ `plainLocationName`, ⛔ not `typed`. Someone answering the question
+         above types "Newtown, NSW", and storing that verbatim in `suburb`
+         beside `state: 'NSW'` renders "Newtown, NSW, NSW" through
+         formatLocation. The qualifier answers a question; it is not the name. */
+      if (codes.length) { postcode = [...codes].sort()[0]; suburb = plainLocationName(typed); }
     }
 
     if (!postcode) {
-      const hint = suggestLocations(typed).slice(0, 3).join(', ');
+      /* ⚠ ` · `, ⛔ NOT `, `. A qualified suggestion already contains a comma,
+         so comma-joining them reads as six places rather than three. */
+      const hint = suggestLocations(typed).slice(0, 3).join('  ·  ');
       setLocStatus(hint ? `Not found. Did you mean ${hint}?` : "We don't know that town or postcode yet.");
       return;
     }
