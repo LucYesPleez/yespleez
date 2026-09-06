@@ -50,9 +50,54 @@
  * compare RMS, not peak, or one will start to dominate.
  */
 const SOUNDS = {
-  reaction: { src: '/sfx/reaction-land.wav',  gain: 0.32 },
-  arrive:   { src: '/sfx/message-arrive.wav', gain: 0.32 },
+  /* The tick a reaction makes as it lands. ⚠ NOT a notification — feedback for
+     something the user just did, which is why it is the shortest thing here. */
+  reaction: { src: '/sfx/reaction-land.wav', gain: 0.32 },
+
+  /**
+   * ⭐⭐ FIVE NOTIFICATION SOUNDS FOR THIRTY TYPES (owner, 2026-09-06).
+   *
+   * `lib/notifMeta.jsx` catalogues thirty notification types. They do NOT get
+   * thirty sounds: a sound you cannot name the instant you hear it is noise,
+   * and thirty of them would teach the ear nothing. They are grouped by what
+   * the sound ASKS OF YOU, and `lib/notificationSound.js` owns that map.
+   *
+   * ⛔ `arrive` KEEPS ITS NAME. It is the message sound and `playMessageArrive`
+   * is called from the shell; renaming the key to `talk` would rename a
+   * published contract for a tidier table.
+   *
+   * ── ⚠⚠ THE GAINS ARE RMS-MATCHED, ⛔ NOT PEAK-MATCHED ─────────────────────
+   *
+   * Every one of these was measured, and they arrived at wildly different
+   * levels: rms .058 to .176, a factor of three. Peak says almost nothing —
+   * three of them peak at exactly 1.00 and are nowhere near equally loud.
+   *
+   * Each gain lifts its sample to the SAME effective loudness the shipping
+   * reaction already has (rms .176 × 0.32 = .0576), then is clamped so
+   * peak × gain never exceeds 0.98 and nothing can clip.
+   *
+   *   file              peak    rms    gain
+   *   reaction-land     0.90   .176    0.32
+   *   notif-talk        0.82   .132    0.44
+   *   notif-ask         0.82   .114    0.50
+   *   notif-yes         1.00   .082    0.70
+   *   notif-no          1.00   .058    0.98   ← at the clamp; cannot go louder
+   *   notif-moved       1.00   .116    0.50
+   *
+   * ⚠ `notif-no` SITS ON THE CEILING. Its rms is the lowest here and its peak
+   * is already full scale, so if it ever reads as too quiet the fix is a
+   * shorter file, ⛔ not a bigger number — there is no headroom left.
+   *
+   * ⚠ If any file is re-cut, RE-MEASURE and recompute. A replacement at the
+   * same peak will not be at the same loudness.
+   */
+  arrive:   { src: '/sfx/notif-talk.wav',  gain: 0.44 },
+  ask:      { src: '/sfx/notif-ask.wav',   gain: 0.50 },
+  yes:      { src: '/sfx/notif-yes.wav',   gain: 0.70 },
+  no:       { src: '/sfx/notif-no.wav',    gain: 0.98 },
+  moved:    { src: '/sfx/notif-moved.wav', gain: 0.50 },
 };
+
 
 const SETTINGS_KEY = 'yp_settings';
 const SOUND_FIELD  = 'messageSounds';
@@ -242,3 +287,16 @@ export function playReactionLand() { play('reaction'); }
  * arrives over realtime, and no OS notification is shown at all.
  */
 export function playMessageArrive() { play('arrive'); }
+
+/**
+ * ⭐ The four non-message notification sounds. `arrive` has its own exported
+ * function above because the shell has always called it by name.
+ *
+ * ⛔ FIRE-AND-FORGET, like every other sound here. A notification is written,
+ * badged and listed whether or not anything is audible.
+ */
+export function playNotificationSound(key) {
+  if (!key || key === 'arrive') return;   // messages go through playMessageArrive
+  if (!SOUNDS[key]) return;
+  play(key);
+}

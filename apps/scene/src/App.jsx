@@ -8,7 +8,8 @@ import { clearActingProfileCache } from './lib/actingProfile';
 import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
 import { startMessaging } from './lib/messagingReliability';
 import { prefetchInbox } from './lib/inboxQuery';
-import { preloadUiSounds, playMessageArrive, armAudioUnlock } from './lib/uiSound';
+import { preloadUiSounds, playMessageArrive, armAudioUnlock, playNotificationSound } from './lib/uiSound';
+import { soundForNotification } from './lib/notificationSound';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -195,7 +196,25 @@ function Shell({ session, onSignOut }) {
       .channel('notif-badge')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `to_user_id=eq.${session.user.id}` }, ({ new: row }) => {
         if (isConversationActivity(row, conversationTypes)) fetchMessages();
-        else setUnreadCount(c => c + 1);
+        else {
+          /**
+           * ⭐ THE NOTIFICATION SOUND, for everything that is not a message.
+           *
+           * ⛔⛔ THE `else` IS LOAD-BEARING. Conversation activity already makes
+           * a sound down its own path (`yp:message-received` → the arrival
+           * shaker), so playing here as well would double every message.
+           *
+           * ⚠ A type with no class is SILENT — `soundForNotification` returns
+           * null and `playNotificationSound` ignores it. Ambient rows are meant
+           * to be seen, not heard.
+           *
+           * ⚠ NOT gated on the badge or on visibility: a suppressed or
+           * dismissed row still never reaches here, because it is the INSERT
+           * that fires, and both of those are later decisions.
+           */
+          playNotificationSound(soundForNotification(row?.type));
+          setUnreadCount(c => c + 1);
+        }
       })
       .subscribe();
 
