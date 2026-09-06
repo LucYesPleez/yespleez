@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { resolvePerformerProfileId } from '../lib/actingProfile';
-import { writeNotification, inferToProfileId } from '../lib/writeNotification';
+/* ⭐ The offer-response write, its notification and its profile resolution all
+   moved into lib/respondToOffer — imported below. This screen no longer writes
+   that decision itself, which is why those three imports are gone. */
 import { useSession } from '../App';
-import { today, formatDisplayDate, localDateStr } from '../lib/dates';
+import { today, formatTimestampDate } from '../lib/dates';
 import { eventRunsOn } from '../lib/eventDays';
 import { withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
@@ -30,7 +31,8 @@ import EnquiryCard from '../components/EnquiryCard';
 import { OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
 import { cancelEnquiry } from '../lib/cancelEnquiry';
 import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
-import { normaliseStatus, STATUS_TAB_COLOR, rawStatusesFor } from '../lib/enquiryUtils';
+import { normaliseStatus, STATUS_TAB_COLOR, applyBucketFilter } from '../lib/enquiryUtils';
+import { respondToOffer } from '../lib/respondToOffer';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -95,10 +97,10 @@ function ApplicationRow({ app, badge, badgeColor, onDelete }) {
    * captioned it "Applied 13 Aug". Everything submitted between local midnight
    * and 10am AEST read as the day before.
    *
-   * ⭐ `localDateStr` is in lib/dates.js for exactly this, and its comment says
-   * so. ⛔ Never slice a timestamp column for a date.
+   * ⭐ `formatTimestampDate` in lib/dates.js is the one helper for this, and it
+   * carries the reasoning. ⛔ Never slice a timestamp column for a date.
    */
-  const appliedOn = app.created_at ? formatDisplayDate(localDateStr(new Date(app.created_at))) : '';
+  const appliedOn = formatTimestampDate(app.created_at);
 
   return (
     <div>
@@ -269,27 +271,32 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       // viewer-relative riddle the old comment had to explain.
       // Profile-keyed for the same reason as the two above: `applicant_user_id`
       // counted every profile's offers on every profile's dashboard.
+      /**
+       * ⛔⛔ NEW ONLY. This had NO status filter, so it counted every
+       * venue-initiated enquiry ever received — accepted, declined, cancelled,
+       * all of it — and the attention banner rendered it as "N new offers". An
+       * act who had answered all twelve invitations they ever had was told they
+       * had twelve waiting.
+       *
+       * ⭐ `applyBucketFilter`, ⛔ not a hand-typed list: two vocabularies reach
+       * this table (`new` and `pending`), and hardcoding one is how the other
+       * stops being counted.
+       *
+       * ⚠⚠ IT WAS `.in('status', rawStatusesFor('new'))`, WHICH IS THE MAPPED
+       * SPELLINGS ONLY. `normaliseStatus` also files an UNKNOWN status under
+       * `new`, so the count was narrower than the INCOMING list it labels.
+       * `applyBucketFilter` emits the catch-all bucket's negative form, which
+       * is the faithful translation of that rule — see its own comment for why
+       * the inversion is deliberate here and a bug everywhere else.
+       */
       const { count: offersCount } = profileId
-        ? await supabase
-            .from('venue_enquiries')
-            .select('id', { count: 'exact', head: true })
-            .eq('applicant_profile_id', profileId)
-            .eq('initiated_by', 'venue')
-            /**
-             * ⛔⛔ NEW ONLY. This had NO status filter, so it counted every
-             * venue-initiated enquiry ever received — accepted, declined,
-             * cancelled, all of it — and the attention banner rendered it as
-             * "N new offers". An act who had answered all twelve invitations
-             * they ever had was told they had twelve waiting, and the number
-             * silently collapsed to the truth the moment they opened the
-             * INCOMING tab, because that path filters properly.
-             *
-             * ⭐ `rawStatusesFor('new')`, ⛔ not a hand-typed list: the venue
-             * side already derives its own count that way, and two vocabularies
-             * reach this table (`new` and `pending`). Hardcoding one of them is
-             * how the other stops being counted.
-             */
-            .in('status', rawStatusesFor('new'))
+        ? await applyBucketFilter(
+            supabase
+              .from('venue_enquiries')
+              .select('id', { count: 'exact', head: true })
+              .eq('applicant_profile_id', profileId)
+              .eq('initiated_by', 'venue'),
+            'new')
         : { count: 0 };
 
       return { profile: profRes.data, applications, outgoingEnquiries, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
@@ -460,74 +467,36 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     setOffers(prev => prev.map(o => o.id === id ? { ...o, ...changes } : o));
   }
 
+  /**
+   * ⛔⛔ THE WHOLE WRITE SEQUENCE LIVES IN `lib/respondToOffer`, AND THE ORDER
+   * IN IT IS THE FIX. The application row used to be inserted BEFORE the
+   * verified enquiry update, so a refused update withheld the notification and
+   * left the card alone — and still left a `pending` application behind it, on
+   * a decision that never succeeded. The authoritative row goes first now, so a
+   * refusal writes nothing at all.
+   *
+   * ⭐ Extracted rather than reordered in place so the refusal path is testable:
+   * a screen callback cannot be driven from a test, and this invariant is
+   * exactly the one that was silently wrong.
+   */
   async function handleOfferRespond(id, status) {
     const offer = offers.find(o => o.id === id);
     if (!offer) return;
-    // M6 (R6.1): the invitation already names the profile that was
-    // invited — applicant_profile_id on venue_enquiries. Use it rather
-    // than re-deriving: the host chose this profile, so any other answer
-    // would attribute the application to someone they did not invite.
-    // Fall back to the seam only for legacy offers that predate that
-    // column being populated.
-    //
-    // ⚠ DECLARED HERE, NOT INSIDE THE `if` BELOW. It was block-scoped to the
-    // accepted-with-event branch and then read again by the notification
-    // further down, outside that block — a ReferenceError that threw before
-    // writeNotification could run and left `updateOffer` unreached, so
-    // accepting an invite appeared to do nothing. `vite build` compiles it
-    // happily; only `oxlint --deny no-undef` sees it.
-    const fromProfileId = status === 'accepted'
-      ? (offer.applicant_profile_id
-          ?? (await resolvePerformerProfileId(userId)).profileId
-          ?? null)
-      : null;
-    if (status === 'accepted' && offer.event_id) {
-      await supabase.from('applications').insert({
-        event_id: offer.event_id, artist_id: userId, from_profile_id: fromProfileId, status: 'pending',
-      });
-    }
-    /**
-     * ⛔⛔ `.select()` IS THE VERIFICATION, AND THE NOTICE DEPENDS ON IT.
-     *
-     * RLS FILTERS AN UPDATE RATHER THAN ERRORING IT: a policy that forbids this
-     * write returns `error: null` and touches nothing. This trusted that
-     * silence and then told the venue "an artist accepted your invite" while
-     * flipping the card to ACCEPTED locally — so the venue held a date for a
-     * booking the database still called pending, and the act's own screen
-     * disagreed with both.
-     *
-     * ⭐ `lib/cancelEnquiry` already states the rule for this exact table:
-     * ⛔ NO NOTIFICATION ON A FAILED WRITE. It was never applied here.
-     *
-     * ⚠ SCOPED TO THIS PROFILE, like its sibling `handleClearEnquiries`. An
-     * unscoped id is a write nobody narrowed, and the scope is what turns an
-     * RLS refusal into a deliberate no-op rather than an accident.
-     */
-    const { data: changed, error: statusErr } = await supabase
-      .from('venue_enquiries')
-      .update({ status })
-      .eq('id', id)
-      .eq('applicant_profile_id', profile?.id)
-      .select('id');
-    if (statusErr || !(changed || []).length) {
+    const res = await respondToOffer(offer, status, {
+      actingProfileId: profile?.id,
+      userId,
+    });
+    if (!res.ok) {
       setOfferError('That did not go through. Nothing was changed.');
       return;
     }
-    setOfferError('');
-    if (offer.venue_user_id && status === 'accepted') {
-      // §A7: about = the performer profile that accepted (the same one the
-      // application was attributed to, resolved above — never re-derived, or
-      // the notice and the application could name different profiles).
-      // to = the venue's profile, inferred under U4; null if ambiguous.
-      await writeNotification({
-        toUserId:       offer.venue_user_id,
-        toProfileId:    await inferToProfileId(offer.venue_user_id, 'venue'),
-        aboutProfileId: fromProfileId,
-        type:    'invite_accepted',
-        message: `An artist accepted your invite${offer.event_name ? ` to ${offer.event_name}` : ''}.`,
-        data:    { event_id: offer.event_id, event_name: offer.event_name },
-      });
-    }
+    /* ⚠ THE DECISION STANDS, AND SOMETHING DOWNSTREAM DID NOT. The invite is
+       accepted and recorded, so the card moves and the venue was told — but the
+       host's pipeline may not show the act, and staying silent about that is
+       how the day's whole bug class works. */
+    setOfferError(res.applicationWarning
+      ? "Accepted. We could not add you to the event's applications list, so tell the venue if they cannot see you there."
+      : '');
     updateOffer(id, { status });
   }
 
@@ -693,8 +662,22 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   // the ref for truthiness matters mid-switch: the ref already names the new
   // profile while `offers` is still empty, which would read as "0 new offers"
   // instead of falling back to the count.
+  /**
+   * ⛔⛔ THE LIST HALF OF THE SAME QUESTION, AND IT USED A THIRD VOCABULARY.
+   *
+   * This was `offers.filter(o => (o.status || '').toLowerCase() === 'new')` —
+   * the raw string, not the bucket. `venue_enquiries.status` is
+   * `NOT NULL DEFAULT 'pending'`, so a freshly written invite is `pending` and
+   * this predicate matched NONE of them. The banner therefore said one number
+   * before the INCOMING tab loaded (the server count, correct) and a different,
+   * usually zero, number afterwards.
+   *
+   * ⭐ `normaliseStatus` is the same rule the server count now asks in its own
+   * language, so the two cannot disagree — including on an unknown spelling,
+   * which both file under `new`.
+   */
   const pendingOffers = offersLoaded.current && offersLoaded.current === profile?.id && !loadingOffers
-    ? offers.filter(o => (o.status || '').toLowerCase() === 'new').length
+    ? offers.filter(o => normaliseStatus({ status: o.status, direction: 'incoming' }) === 'new').length
     : offersCount;
   const attentionItems = [
     newAppsCount  > 0 && `${newAppsCount} new application${newAppsCount  !== 1 ? 's' : ''}`,

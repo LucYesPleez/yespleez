@@ -166,12 +166,17 @@ export function normaliseStatus(e) {
  * EnquiryCard, while those filters were written against the older vocabulary.
  * Both tabs were therefore permanently empty on every event.
  *
- * ⛔ KNOWN AND ACCEPTED LIMIT: `normaliseStatus` sends an UNRECOGNISED status
- * to the first bucket ('new' / 'awaiting'), and no `.in()` list can express
- * "anything not listed". So a status nobody has ever written would appear in
- * the NEW tab (client-side) and be missing from the NEW header count
- * (server-side). The drift test below pins every known spelling; a genuinely
- * unknown one is a bug in whatever wrote it.
+ * ⚠⚠ THIS RETURNS THE MAPPED SPELLINGS ONLY, WHICH IS NOT A WHOLE BUCKET.
+ * `normaliseStatus` sends an UNRECOGNISED status — and a NULL one — to the
+ * catch-all bucket ('new' / 'awaiting'), so `.in('status', rawStatusesFor(…))`
+ * on THAT bucket is strictly narrower than the list it labels. This was
+ * recorded here as a known and accepted limit, on the grounds that no `.in()`
+ * list can express "anything not listed". That is true of `.in()` and false of
+ * PostgREST.
+ *
+ * ⭐ Use `applyBucketFilter` for a server-side count: it picks the right form
+ * per bucket. This stays for callers that genuinely want the spellings (unions
+ * across several buckets, and the drift test below).
  */
 /**
  * ⭐⭐ THE PIPELINE IS EVERYTHING UNDECIDED — `new` AND `seen`.
@@ -199,6 +204,82 @@ export function isUndecided(row) {
 export function rawStatusesFor(bucket, direction = 'incoming') {
   const map = String(direction).toLowerCase() === 'outgoing' ? OUTGOING_STATUS_MAP : INCOMING_STATUS_MAP;
   return Object.entries(map).filter(([, v]) => v === bucket).map(([k]) => k);
+}
+
+/**
+ * ⭐⭐ THE BUCKET EVERY UNRECOGNISED STATUS FALLS INTO, per direction.
+ *
+ * `normaliseStatus` ends `map[st] || (dir === 'outgoing' ? 'awaiting' : 'new')`.
+ * That fallback is DELIBERATE and stated in three places — "an unrecognised
+ * status still needs a home rather than disappearing". This names it once so a
+ * query can ask which bucket is the catch-all instead of re-deriving it.
+ */
+export const FALLBACK_BUCKET = { incoming: 'new', outgoing: 'awaiting' };
+
+/**
+ * ⭐⭐ ONE DEFINITION OF A BUCKET, FOR THE RENDERER **AND** FOR THE SERVER.
+ *
+ * ⛔⛔ THE ASYMMETRY THIS CLOSES. `rawStatusesFor('new')` returns the MAPPED
+ * spellings only, while `normaliseStatus` puts an unrecognised status — and a
+ * NULL one, since it defaults to 'pending' — into that same bucket. So a
+ * server-side `.in('status', rawStatusesFor('new'))` count and the client-side
+ * list it labels could disagree about the very same rows. The old comment above
+ * `rawStatusesFor` called this a "KNOWN AND ACCEPTED LIMIT" on the grounds that
+ * "no `.in()` list can express 'anything not listed'". True of `.in()`; not
+ * true of PostgREST, which can express exactly that.
+ *
+ * ⚠⚠ SO THE CATCH-ALL BUCKET IS DESCRIBED **NEGATIVELY**, AND THAT INVERSION
+ * IS THE POINT. Everywhere else in this codebase a negative status filter is a
+ * bug — it silently admits any status added later. Here the client rule IS
+ * "anything I do not recognise is new", so the negative form is the FAITHFUL
+ * translation and the positive form is the lossy one. ⛔ Do not "fix" this back
+ * into an `.in()` list; that is the drift it exists to remove.
+ *
+ * Returns a description, never a query, so the same object can be applied to
+ * PostgREST and evaluated in a test without either guessing what the other did:
+ *   { kind: 'in',            statuses }  — row matches iff status ∈ statuses
+ *   { kind: 'not-in-or-null', statuses } — row matches iff status is NULL or ∉
+ */
+export function bucketFilterFor(bucket, direction = 'incoming') {
+  const dir = String(direction).toLowerCase() === 'outgoing' ? 'outgoing' : 'incoming';
+  if (bucket !== FALLBACK_BUCKET[dir]) {
+    return { kind: 'in', statuses: rawStatusesFor(bucket, dir) };
+  }
+  /* Every spelling that belongs to some OTHER bucket. Anything else — an
+     unknown spelling, or NULL — is this bucket, which is what the renderer
+     does. ⭐ Derived from the same map, so a spelling added to the map leaves
+     the catch-all automatically and the two cannot drift. */
+  const others = bucketsFor(dir)
+    .filter(b => b !== bucket)
+    .flatMap(b => rawStatusesFor(b, dir));
+  return { kind: 'not-in-or-null', statuses: [...new Set(others)] };
+}
+
+/**
+ * Does a row fall in this bucket, per the description above? ⭐ The renderer's
+ * own answer, `normaliseStatus(row) === bucket`, must agree with this for every
+ * status — `enquiryBucketFilter.test.js` pins exactly that, in both directions.
+ */
+export function bucketFilterMatches(filter, status) {
+  const st = status == null ? null : String(status).toLowerCase();
+  if (filter.kind === 'in') return st !== null && filter.statuses.includes(st);
+  return st === null || !filter.statuses.includes(st);
+}
+
+/**
+ * Apply a bucket to a PostgREST query builder. ⚠ `.or()` is the only form that
+ * can say "NULL or not one of these": `NOT IN (…)` alone evaluates to NULL for
+ * a NULL status, and a NULL predicate excludes the row.
+ *
+ * ⚠ `venue_enquiries.status` is `NOT NULL DEFAULT 'pending'`, so the null leg
+ * is unreachable on that table today. `applications.status` is nullable, and it
+ * is the same question — the leg stays so the answer does not depend on which
+ * table the caller happens to be asking about.
+ */
+export function applyBucketFilter(query, bucket, direction = 'incoming') {
+  const f = bucketFilterFor(bucket, direction);
+  if (f.kind === 'in') return query.in('status', f.statuses);
+  return query.or(`status.is.null,status.not.in.(${f.statuses.join(',')})`);
 }
 
 /** Every bucket a row can normalise into, for building tab lists. */

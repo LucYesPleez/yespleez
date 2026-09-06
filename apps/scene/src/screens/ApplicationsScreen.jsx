@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { writeNotification } from '../lib/writeNotification';
-import { resolvePerformerProfileId } from '../lib/actingProfile';
+import { respondToApplication } from '../lib/respondToApplication';
 import { profileUrl } from '../lib/profileResolution';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { ensureHttps } from '../lib/socialLinks';
@@ -74,26 +73,25 @@ export default function ApplicationsScreen() {
     return () => { cancelled = true; };
   }, [eventId]);
 
+  /**
+   * ⛔⛔ THE VERIFIED WRITE AND ITS NOTICE LIVE IN `lib/respondToApplication`.
+   *
+   * RLS filters an UPDATE rather than erroring it, and this is the surface a
+   * CO-HOST is most likely to be filtered on. Trusting `error: null` meant a
+   * blocked decision still told the applicant "your application was
+   * unsuccessful", still fired the analytics event, and still moved the row
+   * locally — while it stayed in NEW for the actual owner.
+   *
+   * ⭐ The EARLY RETURN below is what makes that structural rather than
+   * incidental: on a refusal the analytics call and the local state update are
+   * unreachable, not merely skipped. Extracted so a test can drive the refusal
+   * path at all, which is the invariant that was silently wrong.
+   */
   async function respond(appId, status, artistId) {
-    /**
-     * ⛔⛔ `.select()` IS THE VERIFICATION, AND EVERYTHING BELOW DEPENDS ON IT.
-     *
-     * RLS FILTERS AN UPDATE RATHER THAN ERRORING IT, and this surface is the
-     * one a CO-HOST is most likely to be filtered on. Trusting `error: null`
-     * meant a blocked decision still sent the applicant "your application was
-     * unsuccessful", still fired the analytics event, and still moved the row
-     * into DECLINED locally — while it stayed in NEW for the actual owner. Two
-     * hosts, two different truths, and an artist told the losing one.
-     *
-     * ⭐ Same rule `lib/cancelEnquiry` states for enquiries:
-     * ⛔ NO NOTIFICATION ON A FAILED WRITE.
-     */
-    const { data: changed, error } = await supabase
-      .from('applications')
-      .update({ status })
-      .eq('id', appId)
-      .select('id');
-    if (error || !(changed || []).length) {
+    const res = await respondToApplication(appId, status, {
+      artistId, eventId, eventName, eventOwnerProfileId,
+    });
+    if (!res.ok) {
       setRespondError('That decision did not go through. Nothing was changed.');
       return;
     }
@@ -103,29 +101,6 @@ export default function ApplicationsScreen() {
     // transition happened. Ids are opaque props — no FK, by taxonomy rule.
     if (status === 'accepted') track(EVENTS.APPLICATION_ACCEPTED, { event_id: eventId, via: 'applications_screen' });
     setApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
-    if (!artistId) return;
-    const evLabel = eventName ? ` for ${eventName}` : '';
-    /* ⚠ Keyed on the NORMALISED bucket. Keyed on the raw value this map missed
-       every decline (`declined` is what gets written, `rejected` is what it
-       listened for), so the applicant was never told. */
-    const NOTIF = {
-      shortlisted: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
-      declined:    { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
-      /* ⚠ Accepting the APPLICATION creates no lineup member and no
-         performance, so it may claim neither. See HostDashboard's copy. */
-      accepted:    { type: 'booking_confirmed',    message: `Your application was accepted${evLabel}.` },
-    };
-    const notif = NOTIF[normaliseStatus({ status, direction: 'incoming' })];
-    // §A7: about = the event's owner (whose decision this is); to = the
-    // artist's performer profile, U4-resolved, null if ambiguous.
-    if (notif) await writeNotification({
-      toUserId:       artistId,
-      toProfileId:    (await resolvePerformerProfileId(artistId)).profileId ?? null,
-      aboutProfileId: eventOwnerProfileId,
-      type:    notif.type,
-      message: notif.message,
-      data:    { event_name: eventName, event_id: eventId },
-    });
   }
 
   /* One rule for the list and the tab counts below — they read the same

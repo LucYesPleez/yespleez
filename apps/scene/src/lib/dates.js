@@ -65,6 +65,34 @@ export function formatDisplayDate(dateStr) {
   return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/**
+ * ⭐⭐ A `timestamptz` COLUMN, FORMATTED AS THE DAY IT HAPPENED HERE.
+ *
+ * ⛔⛔ THE TRAP THIS CLOSES: `formatDisplayDate(row.created_at.slice(0, 10))`.
+ * It reads correctly — trim the time off, format the date — and it is wrong,
+ * because the first ten characters of an instant are its UTC day. An
+ * application made at 9am on 14 Aug in Sydney is stored `2026-08-13T23:00:00Z`
+ * and was captioned "Applied 13 Aug". Everything submitted between local
+ * midnight and 10am AEST read as the day before.
+ *
+ * ⚠⚠ THE DISTINCTION IS THE **INPUT**, NOT THE OPERATION. Slicing
+ * `config.date` is correct and deliberate — that column is already a bare
+ * calendar date in the venue's own reality, and `discoverSearch` says in as
+ * many words not to "fix" it into a Date. Slicing `created_at` is this bug.
+ * Reach for this helper whenever the column is a timestamp; reach for
+ * `formatDisplayDate` directly when it is already a YYYY-MM-DD.
+ *
+ * ⚠ An absent timestamp formats to '' rather than to today — absent is not
+ * now, and a caption invented for a row with no date would be a fact nobody
+ * recorded.
+ */
+export function formatTimestampDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return formatDisplayDate(localDateStr(d));
+}
+
 export function formatDateRange(startStr, endStr) {
   if (!startStr) return '';
   const fmt = s => {
